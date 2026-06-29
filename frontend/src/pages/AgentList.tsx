@@ -1,4 +1,73 @@
+import { useState, useEffect, useCallback } from 'react'
+import { fetchAgents, deleteAgent as apiDeleteAgent, type Agent } from '../api/client'
+import AgentCard from '../components/AgentCard'
+
 function AgentList() {
-  return <div>Agent List (placeholder)</div>
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const loadAgents = useCallback(async () => {
+    setLoading(true)
+    const data = await fetchAgents(search || undefined)
+    setAgents(data.items)
+    setLoading(false)
+  }, [search])
+
+  useEffect(() => {
+    loadAgents()
+  }, [loadAgents])
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('确认删除此智能体？')) return
+    await apiDeleteAgent(id)
+    setAgents((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <input
+          placeholder="搜索智能体..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            padding: '8px 14px',
+            fontSize: 14,
+            border: '1px solid #ccc',
+            borderRadius: 6,
+            width: 260,
+          }}
+        />
+        <a
+          href="/agents/new"
+          style={{
+            padding: '8px 20px',
+            background: '#1976d2',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            textDecoration: 'none',
+            fontSize: 14,
+          }}
+        >
+          + 新建智能体
+        </a>
+      </div>
+
+      {loading ? <div>加载中...</div> : null}
+
+      {!loading && agents.length === 0 ? (
+        <div style={{ color: '#888', marginTop: 40, textAlign: 'center' }}>
+          暂无智能体，点击「+ 新建智能体」创建
+        </div>
+      ) : null}
+
+      {agents.map((agent) => (
+        <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} />
+      ))}
+    </div>
+  )
 }
+
 export default AgentList
