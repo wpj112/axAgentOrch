@@ -69,7 +69,7 @@ def build_graph(
 
         elif ntype == "llm":
 
-            def make_llm_fn(llm_nid, _llm=llm):
+            def make_llm_fn(llm_nid, llm_config, _llm=llm):
                 def fn(state: AgentState) -> dict:
                     msgs = state["messages"]
                     tool_results = state.get("tool_results", {})
@@ -77,23 +77,27 @@ def build_graph(
 
                     if not msgs:
                         user_text = str(input_data) if input_data else "Process the request."
+                        system_text = llm_config.get("system_prompt", "")
 
-                        # Build context from tool results
                         context = ""
                         if tool_results:
                             context = "Previous tool results:\n"
                             for tool_name, result in tool_results.items():
                                 context += f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}\n"
 
-                        prompt = f"{context}\nUser request: {user_text}"
-                        msgs = [HumanMessage(content=prompt)]
+                        prompt_parts = []
+                        if system_text:
+                            prompt_parts.append(SystemMessage(content=system_text))
+                        prompt_text = f"{context}\nUser request: {user_text}" if context else user_text
+                        prompt_parts.append(HumanMessage(content=prompt_text))
+                        msgs = prompt_parts
 
                     resp = _llm.invoke(msgs)
                     return {"messages": [resp], "tool_results": tool_results}
 
                 return fn
 
-            graph.add_node(nid, make_llm_fn(nid))
+            graph.add_node(nid, make_llm_fn(nid, nconfig))
 
         elif ntype == "http":
 
