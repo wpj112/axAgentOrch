@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Agent, Node, Edge, Execution
+from app.models import Agent, Node, Edge, Execution, GlobalSetting
 from app.schemas import AgentCreate, AgentUpdate
 from app.engine.executor import run_agent as engine_run_agent
 
@@ -15,7 +15,12 @@ class AgentService:
         self.db = db
 
     async def create_agent(self, data: AgentCreate) -> Agent:
-        agent = Agent(name=data.name, description=data.description)
+        agent = Agent(
+            name=data.name,
+            description=data.description,
+            llm_model=data.llm_model,
+            llm_temperature=data.llm_temperature,
+        )
         self.db.add(agent)
         await self.db.flush()
 
@@ -74,6 +79,10 @@ class AgentService:
             agent.name = data.name
         if data.description is not None:
             agent.description = data.description
+        if data.llm_model is not None:
+            agent.llm_model = data.llm_model
+        if data.llm_temperature is not None:
+            agent.llm_temperature = data.llm_temperature
 
         if data.nodes is not None:
             # Remove old nodes and edges

@@ -41,6 +41,8 @@ function AgentList() {
             color: '#e0e0e0',
           }}
         />
+        <div style={{ display: 'flex', gap: 10 }}>
+        <a href="/settings" style={{ padding: '8px 16px', background: '#1e2a4a', color: '#b0bec5', border: '1px solid #2a3a5c', borderRadius: 6, textDecoration: 'none', fontSize: 13 }}>⚙ 设置</a>
         <a
           href="/agents/new"
           style={{
@@ -55,6 +57,7 @@ function AgentList() {
         >
           + 新建智能体
         </a>
+        </div>
       </div>
 
       {loading ? <div style={{ color: '#b0bec5' }}>加载中...</div> : null}

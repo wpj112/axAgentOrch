@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.api.agents import router as agents_router
+from app.api.settings import router as settings_router
 
 app = FastAPI(title="AgentOrch", version="0.1.0")
 
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(agents_router)
+app.include_router(settings_router)
 
 # Serve React SPA
 frontend_dir = Path(settings.frontend_dist_dir)

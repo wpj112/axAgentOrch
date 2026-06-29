@@ -5,8 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import Agent, Execution
+from app.models import Agent, Execution, GlobalSetting
 from app.engine.builder import build_graph
+
+
+async def _get_db_settings(db: AsyncSession) -> dict[str, str]:
+    result = await db.execute(select(GlobalSetting))
+    return {r.key: r.value for r in result.scalars().all()}
 
 
 async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> Execution:
@@ -15,6 +20,13 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
     agent = result.scalar_one_or_none()
     if not agent:
         raise ValueError(f"Agent not found: {agent_id}")
+
+    db_settings = await _get_db_settings(db)
+
+    model = agent.llm_model or db_settings.get("model")
+    api_key = db_settings.get("api_key")
+    base_url = db_settings.get("base_url")
+    temp = float(agent.llm_temperature or db_settings.get("temperature") or "0.7")
 
     execution = Execution(
         agent_id=agent_id,
@@ -27,7 +39,7 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
     await db.refresh(execution)
 
     try:
-        graph = build_graph(agent.nodes, agent.edges)
+        graph = build_graph(agent.nodes, agent.edges, model=model, api_key=api_key, base_url=base_url, temperature=temp)
         result = graph.invoke({"messages": [], "input": input_data})
 
         final_messages = result.get("messages", [])

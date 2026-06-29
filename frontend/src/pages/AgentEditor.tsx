@@ -19,6 +19,8 @@ function AgentEditor() {
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [llmModel, setLlmModel] = useState('')
+  const [llmTemperature, setLlmTemperature] = useState('')
   const [nodes, setNodes] = useState<AgentNode[]>([])
   const [edges, setEdges] = useState<EdgeDef[]>([])
   const [loading, setLoading] = useState(!isNew)
@@ -31,6 +33,8 @@ function AgentEditor() {
       fetchAgent(id).then((agent) => {
         setName(agent.name)
         setDescription(agent.description || '')
+        setLlmModel(agent.llm_model || '')
+        setLlmTemperature(agent.llm_temperature || '')
         const nodeList: AgentNode[] = agent.nodes.map((n) => ({
           type: n.type as AgentNode['type'],
           label: n.label,
@@ -71,6 +75,8 @@ function AgentEditor() {
         const agent = await createAgent({
           name: name.trim(),
           description: description.trim() || null,
+          llm_model: llmModel.trim() || undefined,
+          llm_temperature: llmTemperature.trim() || undefined,
           nodes: nodeList,
           edges: edges.map((e) => ({
             source_node_id: e.sourceIdx as unknown as string,
@@ -82,11 +88,15 @@ function AgentEditor() {
         const payload: {
           name: string
           description: string | null
+          llm_model: string | null
+          llm_temperature: string | null
           nodes: typeof nodeList
           edges: { source_node_id: number; target_node_id: number }[]
         } = {
           name: name.trim(),
           description: description.trim() || null,
+          llm_model: llmModel.trim() || null,
+          llm_temperature: llmTemperature.trim() || null,
           nodes: nodeList,
           edges: edges.map((e) => ({
             source_node_id: e.sourceIdx,
@@ -157,11 +167,15 @@ function AgentEditor() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
         <div>
-          <AgentForm
-            name={name}
-            description={description}
-            onChangeName={setName}
-            onChangeDescription={setDescription}
+            <AgentForm
+              name={name}
+              description={description}
+              llmModel={llmModel}
+              llmTemperature={llmTemperature}
+              onChangeName={setName}
+              onChangeDescription={setDescription}
+              onChangeLlmModel={setLlmModel}
+              onChangeLlmTemperature={setLlmTemperature}
           />
         </div>
 

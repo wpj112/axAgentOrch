@@ -7,7 +7,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage
 
 from app.config import settings
-from app.engine.tools import http_call, db_query, run_code
 
 
 class AgentState(TypedDict):
@@ -15,30 +14,31 @@ class AgentState(TypedDict):
     input: dict
 
 
-ALL_TOOLS = [http_call, db_query, run_code]
+ALL_TOOLS = []
 
 
-def build_graph(nodes: list, edges: list) -> StateGraph:
-    """Build a LangGraph StateGraph from agent node and edge definitions.
-    
-    The graph structure is: start -> llm_node (with tools) -> END
-    The LLM node has all tool nodes (http/db/code) bound as tools.
-    """
+def get_tools():
+    from app.engine.tools import http_call, db_query, run_code
+    return [http_call, db_query, run_code]
+
+
+def build_graph(
+    nodes: list,
+    edges: list,
+    model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    temperature: float = 0.7,
+):
     llm = ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.7,
+        model=model or settings.llm_model,
+        api_key=api_key or settings.openai_api_key,
+        base_url=base_url or settings.openai_base_url,
+        temperature=temperature,
     )
 
-    node_map = {str(n.id): n for n in nodes}
-    start_node = next((n for n in nodes if n.type == "start"), None)
-    llm_nodes = [n for n in nodes if n.type == "llm"]
     tool_nodes = [n for n in nodes if n.type in ("http", "db", "code")]
-
-    available_tools = [t for t in ALL_TOOLS if any(tn.type in ("http", "db", "code") for tn in tool_nodes)]
-    if not available_tools:
-        available_tools = ALL_TOOLS
+    available_tools = get_tools() if tool_nodes else get_tools()
 
     llm_with_tools = llm.bind_tools(available_tools)
     tool_node = ToolNode(available_tools)
@@ -69,7 +69,6 @@ def build_graph(nodes: list, edges: list) -> StateGraph:
 
     node_id_map = {str(n.id): str(n.id) for n in nodes}
 
-    # Separate unconditional and conditional edges
     normal_edges = [e for e in edges if not e.condition]
     cond_edges = [e for e in edges if e.condition]
 

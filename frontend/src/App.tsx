@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import AgentList from './pages/AgentList'
 import AgentEditor from './pages/AgentEditor'
+import Settings from './pages/Settings'
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
         <h1 style={{ margin: '0 0 16px', fontSize: 24, color: '#90caf9' }}>AgentOrch</h1>
         <Routes>
           <Route path="/" element={<AgentList />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/agents/new" element={<AgentEditor />} />
           <Route path="/agents/:id" element={<AgentEditor />} />
         </Routes>

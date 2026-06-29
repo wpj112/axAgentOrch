@@ -27,6 +27,8 @@ export interface Agent {
   id: string
   name: string
   description: string | null
+  llm_model?: string | null
+  llm_temperature?: string | null
   created_at: string
   updated_at: string
   nodes: AgentNode[]
@@ -72,6 +74,8 @@ export async function fetchAgent(id: string): Promise<Agent> {
 export async function createAgent(payload: {
   name: string
   description?: string | null
+  llm_model?: string | null
+  llm_temperature?: string | null
   nodes: Omit<AgentNode, 'id' | 'agent_id'>[]
   edges: Omit<AgentEdge, 'id' | 'agent_id'>[]
 }): Promise<Agent> {
@@ -84,6 +88,8 @@ export async function updateAgent(
   payload: {
     name?: string
     description?: string | null
+    llm_model?: string | null
+    llm_temperature?: string | null
     nodes?: Omit<AgentNode, 'id' | 'agent_id'>[]
     edges?: Omit<AgentEdge, 'id' | 'agent_id'>[]
   }
@@ -103,5 +109,24 @@ export async function runAgent(id: string, input: Record<string, unknown>): Prom
 
 export async function fetchExecutions(agentId: string): Promise<Execution[]> {
   const { data } = await api.get<Execution[]>(`/agents/${agentId}/executions`)
+  return data
+}
+
+// ---- Settings ----
+
+export interface AppSettings {
+  model: string
+  api_key: string
+  base_url: string
+  temperature: string
+}
+
+export async function fetchSettings(): Promise<AppSettings> {
+  const { data } = await api.get<AppSettings>('/settings')
+  return data
+}
+
+export async function updateSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
+  const { data } = await api.put<AppSettings>('/settings', settings)
   return data
 }

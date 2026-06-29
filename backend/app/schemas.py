@@ -46,6 +46,8 @@ class EdgeResponse(BaseModel):
 class AgentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
+    llm_model: str | None = None
+    llm_temperature: str | None = None
     nodes: list[NodeCreate] = Field(default_factory=list, min_length=2)
     edges: list[EdgeCreate] = Field(default_factory=list, min_length=1)
 
@@ -53,6 +55,8 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    llm_model: str | None = None
+    llm_temperature: str | None = None
     nodes: list[NodeCreate] | None = None
     edges: list[EdgeCreate] | None = None
 
@@ -61,6 +65,8 @@ class AgentResponse(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
+    llm_model: str | None = None
+    llm_temperature: str | None = None
     created_at: datetime
     updated_at: datetime
     nodes: list[NodeResponse] = []
@@ -96,3 +102,17 @@ class RunResponse(BaseModel):
 class AgentListResponse(BaseModel):
     items: list[AgentResponse]
     total: int
+
+
+class SettingsRequest(BaseModel):
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    temperature: str | None = None
+
+
+class SettingsResponse(BaseModel):
+    model: str = ""
+    api_key: str = ""
+    base_url: str = ""
+    temperature: str = "0.7"
