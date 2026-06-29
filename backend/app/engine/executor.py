@@ -1,5 +1,7 @@
 import uuid
+import json
 from datetime import datetime, timezone
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -61,3 +63,34 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
         await db.refresh(execution)
 
     return execution
+
+
+async def run_agent_stream(
+    agent_id: uuid.UUID,
+    input_data: dict,
+    model: str | None,
+    api_key: str | None,
+    base_url: str | None,
+    temperature: float,
+    nodes: list,
+    edges: list,
+) -> AsyncGenerator[str, None]:
+    """Stream per-node execution steps via SSE."""
+    try:
+        graph = build_graph(nodes, edges, model=model, api_key=api_key, base_url=base_url, temperature=temperature)
+
+        last_steps: list[dict] = []
+        async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": []}):
+            for node_id, state in event.items():
+                steps = state.get("execution_steps", [])
+                if steps != last_steps:
+                    new_steps = [s for s in steps if s not in last_steps]
+                    last_steps = steps
+                    for step in new_steps:
+                        yield f"data: {json.dumps({'event': 'step', **step}, ensure_ascii=False)}\n\n"
+
+        final = last_steps[-1] if last_steps else {}
+        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': last_steps}, ensure_ascii=False)}\n\n"
+
+    except Exception as e:
+        yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"

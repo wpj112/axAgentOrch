@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -94,7 +95,7 @@ async def delete_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Agent not found")
 
 
-@router.post("/{agent_id}/run", response_model=RunResponse)
+@router.post("/{agent_id}/run")
 async def run_agent(
     agent_id: uuid.UUID,
     data: RunRequest,
@@ -105,6 +106,20 @@ async def run_agent(
     agent = await service.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    if mode == "stream":
+        db_settings = await _get_db_settings(db)
+        model = agent.llm_model or db_settings.get("model")
+        api_key = db_settings.get("api_key")
+        base_url = db_settings.get("base_url")
+        temp = float(agent.llm_temperature or db_settings.get("temperature") or "0.7")
+
+        from app.engine.executor import run_agent_stream
+        return StreamingResponse(
+            run_agent_stream(agent_id, data.input, model, api_key, base_url, temp, agent.nodes, agent.edges),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     if mode == "async":
         from datetime import datetime, timezone
@@ -136,6 +151,13 @@ async def run_agent(
         output=execution.output,
         error_message=execution.error_message,
     )
+
+
+async def _get_db_settings(db: AsyncSession) -> dict[str, str]:
+    from app.models import GlobalSetting
+    from sqlalchemy import select as sa_select
+    result = await db.execute(sa_select(GlobalSetting))
+    return {r.key: r.value for r in result.scalars().all()}
 
 
 @router.get("/{agent_id}/executions", response_model=list[ExecutionResponse])

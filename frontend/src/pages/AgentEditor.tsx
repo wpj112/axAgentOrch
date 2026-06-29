@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, type AgentNode, type AgentEdge } from '../api/client'
+import { fetchAgent, createAgent, updateAgent, type AgentNode, type AgentEdge } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
@@ -28,7 +28,6 @@ function AgentEditor() {
   const [saved, setSaved] = useState(false)
   const [executionSteps, setExecutionSteps] = useState<{ node_id: string; status: string }[] | null>(null)
   const [runText, setRunText] = useState('')
-  const [runMode, setRunMode] = useState<'sync' | 'async'>('sync')
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<{ status: string; text: string } | null>(null)
 
@@ -112,6 +111,46 @@ function AgentEditor() {
 
   const handleSave = () => doSave(name, description, nodes, edges, llmModel, llmTemperature)
 
+  const doRun = async () => {
+    if (!runText.trim() || isNew || !id) return
+    setRunResult(null); setRunning(true); setExecutionSteps([])
+    try {
+      const resp = await fetch(`/api/agents/${id}/run?mode=stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { message: runText } }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const reader = resp.body?.getReader()
+      if (!reader) throw new Error('No response body')
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.event === 'step') {
+              setExecutionSteps(prev => [...(prev || []), { node_id: evt.node_id, status: evt.status }])
+            } else if (evt.event === 'done') {
+              setExecutionSteps(evt.steps || [])
+              setRunResult({ status: evt.status || 'success', text: '' })
+              setTimeout(() => setExecutionSteps(null), 5000)
+            } else if (evt.event === 'error') {
+              setRunResult({ status: 'failed', text: evt.message })
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setRunResult({ status: 'failed', text: String(err) })
+    } finally { setRunning(false) }
+  }
+
   const handleSaveNodeConfig = (node: AgentNode) => {
     if (selectedNodeIdx === null) return
     const newNodes = [...nodes]
@@ -152,46 +191,16 @@ function AgentEditor() {
         background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 8,
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{ display: 'flex', gap: 12, fontSize: 13, marginRight: 8 }}>
-          <label style={{ cursor: 'pointer', color: runMode === 'sync' ? '#90caf9' : '#6a7a8a' }}>
-            <input type="radio" checked={runMode === 'sync'} onChange={() => setRunMode('sync')} /> 同步
-          </label>
-          <label style={{ cursor: 'pointer', color: runMode === 'async' ? '#90caf9' : '#6a7a8a' }}>
-            <input type="radio" checked={runMode === 'async'} onChange={() => setRunMode('async')} /> 异步
-          </label>
-        </div>
         <input
           value={runText}
           onChange={e => setRunText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !running && runText.trim() && !isNew && id) {
-            setRunResult(null); setRunning(true)
-            apiRunAgent(id, { message: runText }, runMode).then(res => {
-              setRunResult(res.output ? { status: res.status, text: JSON.stringify(res.output, null, 2) } : { status: res.status, text: res.error_message || '' })
-              if (res.output) {
-                const steps = (res.output as Record<string, unknown>).execution_steps as { node_id: string; status: string }[] | undefined
-                if (steps) { setExecutionSteps(steps); setTimeout(() => setExecutionSteps(null), 5000) }
-              }
-              setRunning(false)
-            }).catch(err => { setRunResult({ status: 'failed', text: String(err) }); setRunning(false) })
-          }}}
+          onKeyDown={e => { if (e.key === 'Enter' && !running && runText.trim()) doRun() }}
           placeholder="输入 message，按 Enter 运行..."
           style={{ flex: 1, padding: '8px 14px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, background: '#0f1a30', color: '#e0e0e0' }}
           disabled={isNew}
         />
         <button
-          onClick={async () => {
-            if (!runText.trim() || isNew || !id) return
-            setRunResult(null); setRunning(true)
-            try {
-              const res = await apiRunAgent(id, { message: runText }, runMode)
-              setRunResult(res.output ? { status: res.status, text: JSON.stringify(res.output, null, 2) } : { status: res.status, text: res.error_message || '' })
-              if (res.output) {
-                const steps = (res.output as Record<string, unknown>).execution_steps as { node_id: string; status: string }[] | undefined
-                if (steps) { setExecutionSteps(steps); setTimeout(() => setExecutionSteps(null), 5000) }
-              }
-            } catch (err) { setRunResult({ status: 'failed', text: String(err) }) }
-            finally { setRunning(false) }
-          }}
+          onClick={doRun}
           disabled={running || isNew}
           style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 6, cursor: running ? 'not-allowed' : 'pointer', background: '#1b3a1e', color: '#81c784', opacity: running ? 0.5 : 1, whiteSpace: 'nowrap' }}
         >
