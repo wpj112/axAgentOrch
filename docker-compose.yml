@@ -46,6 +46,8 @@ services:
     volumes:
       - ./backend/app:/app/app  # dev hot reload
       - ./frontend/dist:/app/frontend_dist
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   worker:
     build:
