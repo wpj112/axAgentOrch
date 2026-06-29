@@ -24,6 +24,10 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
   const [config, setConfig] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    if (initial) {
+      setType(initial.type as AgentNode['type'])
+      setLabel(initial.label || '')
+    }
     if (initial?.config) {
       const flat: Record<string, string> = {}
       for (const [k, v] of Object.entries(initial.config)) {

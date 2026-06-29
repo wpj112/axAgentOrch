@@ -43,6 +43,7 @@ function ConfigPanel({ node, onSave, onClose }: ConfigPanelProps) {
         }}
       >
         <NodeForm
+          key={node.id || node.label}
           initial={node}
           onSave={(updated) => {
             onSave(updated)

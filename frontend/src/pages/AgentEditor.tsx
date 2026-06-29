@@ -62,12 +62,12 @@ function AgentEditor() {
     }
     setSaving(true)
 
-    const nodeList = nodes.map((n, i) => ({
+    const nodeList = nodes.map((n) => ({
       type: n.type,
       label: n.label,
       config: n.config,
-      position_x: 0,
-      position_y: i * 80,
+      position_x: n.position_x ?? 0,
+      position_y: n.position_y ?? 0,
     }))
 
     try {
