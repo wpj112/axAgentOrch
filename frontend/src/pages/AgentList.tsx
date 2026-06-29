@@ -78,9 +78,13 @@ function AgentList() {
         <div style={{ color: '#6a7a8a', marginTop: 40, textAlign: 'center' }}>暂无智能体，点击「+ 新建智能体」创建</div>
       ) : null}
 
-      {view === 'card' && agents.map((agent) => (
-        <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} />
-      ))}
+      {view === 'card' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+          {agents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} />
+          ))}
+        </div>
+      )}
 
       {view === 'list' && agents.length > 0 && (
         <div style={{ background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 8, overflow: 'hidden' }}>

@@ -28,7 +28,6 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
         border: '1px solid #2a3a5c',
         borderRadius: 8,
         padding: '16px 20px',
-        marginBottom: 12,
         background: '#1e2a4a',
         color: '#e0e0e0',
       }}
