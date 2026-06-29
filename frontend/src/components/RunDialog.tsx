@@ -48,13 +48,14 @@ function RunDialog({ onRun, onClose }: RunDialogProps) {
     >
       <div
         style={{
-          background: '#fff',
+          background: '#1e2a4a',
           borderRadius: 12,
           padding: 24,
           width: 520,
           maxHeight: '80vh',
           overflow: 'auto',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+          color: '#e0e0e0',
         }}
       >
         <h3 style={{ marginTop: 0 }}>运行智能体</h3>
@@ -70,10 +71,12 @@ function RunDialog({ onRun, onClose }: RunDialogProps) {
               padding: '8px 12px',
               fontFamily: 'monospace',
               fontSize: 13,
-              border: '1px solid #ccc',
+              border: '1px solid #2a3a5c',
               borderRadius: 6,
               boxSizing: 'border-box',
               resize: 'vertical',
+              background: '#0f1a30',
+              color: '#e0e0e0',
             }}
           />
         </div>
@@ -85,7 +88,7 @@ function RunDialog({ onRun, onClose }: RunDialogProps) {
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginBottom: 16 }}>
           <button
             onClick={onClose}
-            style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', background: '#fff' }}
+            style={{ padding: '8px 20px', fontSize: 14,               border: '1px solid #2a3a5c', borderRadius: 6, cursor: 'pointer', background: '#0f1a30', color: '#e0e0e0'  }}
           >
             关闭
           </button>
@@ -117,7 +120,7 @@ function RunDialog({ onRun, onClose }: RunDialogProps) {
               <div style={{ marginTop: 8, color: '#c62828', fontSize: 13 }}>{result.error_message}</div>
             )}
             {result.output && (
-              <pre style={{ marginTop: 8, padding: 10, background: '#f5f5f5', borderRadius: 6, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' }}>
+              <pre style={{ marginTop: 8, padding: 10,               background: '#0f1a30', borderRadius: 6, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto', color: '#e0e0e0'  }}>
                 {JSON.stringify(result.output, null, 2)}
               </pre>
             )}

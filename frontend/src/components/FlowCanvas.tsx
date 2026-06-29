@@ -155,7 +155,7 @@ function FlowCanvas({
   }
 
   return (
-    <div ref={reactFlowWrapper} style={{ width: '100%', height: 400, border: '1px solid #e0e0e0', borderRadius: 8, position: 'relative' }}>
+    <div ref={reactFlowWrapper} style={{ width: '100%', height: 'calc(100vh - 110px)', border: '1px solid #2a3a5c', borderRadius: 8, position: 'relative', background: '#1a1a2e' }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -169,15 +169,15 @@ function FlowCanvas({
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
       >
-        <Background color="#f0f0f0" gap={20} />
-        <Controls />
+        <Background color="#2a3a5c" gap={20} />
+        <Controls style={{ background: '#1e2a4a', border: '1px solid #2a3a5c' }} />
         <MiniMap nodeColor={(n) => {
           const colorMap: Record<string, string> = {
             start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
             db: '#ff9800', code: '#795548', end: '#f44336',
           }
           return colorMap[n.data?.type] || '#999'
-        }} />
+        }} style={{ background: '#1e2a4a' }} />
       </ReactFlow>
 
       <NodePalette />
@@ -186,8 +186,8 @@ function FlowCanvas({
         onClick={handleAutoLayout}
         style={{
           position: 'absolute', bottom: 10, right: 10, zIndex: 10,
-          padding: '6px 14px', fontSize: 12, border: '1px solid #ccc',
-          borderRadius: 6, background: '#fff', cursor: 'pointer',
+          padding: '6px 14px', fontSize: 12, border: '1px solid #2a3a5c',
+          borderRadius: 6, background: '#1e2a4a', cursor: 'pointer', color: '#e0e0e0',
         }}
       >
         自动布局

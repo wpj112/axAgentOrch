@@ -5,8 +5,8 @@ import AgentEditor from './pages/AgentEditor'
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>AgentOrch</h1>
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: 16, minHeight: '100vh', background: '#121220', color: '#e0e0e0' }}>
+        <h1 style={{ margin: '0 0 16px', fontSize: 24, color: '#90caf9' }}>AgentOrch</h1>
         <Routes>
           <Route path="/" element={<AgentList />} />
           <Route path="/agents/new" element={<AgentEditor />} />

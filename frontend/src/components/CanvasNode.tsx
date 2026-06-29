@@ -26,10 +26,11 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         padding: '10px 16px',
         borderRadius: 10,
         border: `2px solid ${color}`,
-        background: '#fff',
+        background: '#1e2a4a',
         minWidth: 120,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
         fontSize: 13,
+        color: '#e0e0e0',
       }}
     >
       <Handle type="target" position={Position.Top} style={{ background: color }} />

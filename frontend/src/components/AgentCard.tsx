@@ -9,19 +9,20 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
   return (
     <div
       style={{
-        border: '1px solid #e0e0e0',
+        border: '1px solid #2a3a5c',
         borderRadius: 8,
         padding: '16px 20px',
         marginBottom: 12,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: '#fff',
+        background: '#1e2a4a',
+        color: '#e0e0e0',
       }}
     >
       <div>
         <div style={{ fontSize: 16, fontWeight: 600 }}>{agent.name}</div>
-        <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: '#6a7a8a', marginTop: 4 }}>
           {agent.description || '暂无描述'} · {agent.nodes.length} 个节点
         </div>
       </div>
@@ -31,7 +32,7 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
           style={{
             padding: '6px 14px',
             fontSize: 13,
-            background: '#1976d2',
+            background: '#1565c0',
             color: '#fff',
             border: 'none',
             borderRadius: 4,
@@ -45,7 +46,7 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
           style={{
             padding: '6px 14px',
             fontSize: 13,
-            background: '#d32f2f',
+            background: '#c62828',
             color: '#fff',
             border: 'none',
             borderRadius: 4,

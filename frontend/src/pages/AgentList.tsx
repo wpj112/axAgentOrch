@@ -34,9 +34,11 @@ function AgentList() {
           style={{
             padding: '8px 14px',
             fontSize: 14,
-            border: '1px solid #ccc',
+            border: '1px solid #2a3a5c',
             borderRadius: 6,
             width: 260,
+            background: '#0f1a30',
+            color: '#e0e0e0',
           }}
         />
         <a
@@ -55,10 +57,10 @@ function AgentList() {
         </a>
       </div>
 
-      {loading ? <div>加载中...</div> : null}
+      {loading ? <div style={{ color: '#b0bec5' }}>加载中...</div> : null}
 
       {!loading && agents.length === 0 ? (
-        <div style={{ color: '#888', marginTop: 40, textAlign: 'center' }}>
+        <div style={{             color: '#6a7a8a', marginTop: 40, textAlign: 'center' }}>
           暂无智能体，点击「+ 新建智能体」创建
         </div>
       ) : null}

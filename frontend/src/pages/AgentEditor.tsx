@@ -115,8 +115,8 @@ function AgentEditor() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <a href="/" style={{ color: '#1976d2', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
-        <span style={{ fontSize: 16, fontWeight: 600 }}>
+        <a href="/" style={{ color: '#90caf9', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
+        <span style={{ fontSize: 16, fontWeight: 600, color: '#e0e0e0' }}>
           {isNew ? '新建智能体' : `编辑: ${name}`}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -129,8 +129,8 @@ function AgentEditor() {
               border: '1px solid #4caf50',
               borderRadius: 6,
               cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
-              background: '#e8f5e9',
-              color: '#2e7d32',
+              background: '#1b3a1e',
+              color: '#81c784',
               opacity: nodes.length === 0 ? 0.5 : 1,
             }}
           >
@@ -155,7 +155,7 @@ function AgentEditor() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
         <div>
           <AgentForm
             name={name}

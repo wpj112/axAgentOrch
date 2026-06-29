@@ -34,8 +34,9 @@ function ConfigPanel({ node, onSave, onClose }: ConfigPanelProps) {
         style={{
           position: 'fixed', top: 0, right: 0,
           width: 380, height: '100vh',
-          background: '#fff',
-          boxShadow: '-4px 0 16px rgba(0,0,0,0.1)',
+          background: '#1e2a4a',
+          boxShadow: '-4px 0 16px rgba(0,0,0,0.5)',
+          color: '#e0e0e0',
           zIndex: 200,
           overflow: 'auto',
           transition: 'right 0.3s ease',
