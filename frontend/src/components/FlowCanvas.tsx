@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useEffect } from 'react'
 import ReactFlow, {
   Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
@@ -70,8 +70,17 @@ function FlowCanvas({
     edges.map(e => toRFEdge(e, nodes))
   )
 
+  const rfNodesRef = useRef(rfNodes)
+  const rfEdgesRef = useRef(rfEdges)
+  useEffect(() => { rfNodesRef.current = rfNodes; rfEdgesRef.current = rfEdges }, [rfNodes, rfEdges])
+
+  useEffect(() => {
+    setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
+    setRfEdges(edges.map(e => toRFEdge(e, nodes)))
+  }, [nodes, edges, setRfNodes, setRfEdges])
+
   const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
-    const idxMap = new Map(nodes.map((n, i) => [n.id || String(i), i]))
+    const idxMap = new Map(nextRfNodes.map((n, i) => [n.id, i]))
     const agentNodes: AgentNode[] = nextRfNodes.map(n => ({
       id: n.id,
       type: (n.data?.type as AgentNode['type']) || 'start',
@@ -87,17 +96,17 @@ function FlowCanvas({
     }))
     onNodesChange(agentNodes)
     onEdgesChange(agentEdges)
-  }, [nodes, onNodesChange, onEdgesChange])
+  }, [onNodesChange, onEdgesChange])
 
   const onConnect = useCallback((params: Connection) => {
     setRfEdges(eds => {
       const next = addEdge({
         ...params, style: {}, data: { condition: null },
       }, eds)
-      syncToParent(rfNodes, next)
+      syncToParent(rfNodesRef.current, next)
       return next
     })
-  }, [rfNodes, setRfEdges, syncToParent])
+  }, [setRfEdges, syncToParent])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -122,10 +131,10 @@ function FlowCanvas({
 
     setRfNodes(nds => {
       const next = [...nds, newNode]
-      syncToParent(next, rfEdges)
+      syncToParent(next, rfEdgesRef.current)
       return next
     })
-  }, [rfEdges, setRfNodes, syncToParent])
+  }, [setRfNodes, syncToParent])
 
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const idx = nodes.findIndex(n => (n.id || '') === node.id)
@@ -135,23 +144,23 @@ function FlowCanvas({
   const handleNodesChange: OnNodesChange = useCallback(changes => {
     onRfNodesChange(changes)
     setRfNodes(nds => {
-      syncToParent(nds, rfEdges)
+      syncToParent(nds, rfEdgesRef.current)
       return nds
     })
-  }, [rfEdges, onRfNodesChange, setRfNodes, syncToParent])
+  }, [onRfNodesChange, setRfNodes, syncToParent])
 
   const handleEdgesChange: OnEdgesChange = useCallback(changes => {
     onRfEdgesChange(changes)
     setRfEdges(eds => {
-      syncToParent(rfNodes, eds)
+      syncToParent(rfNodesRef.current, eds)
       return eds
     })
-  }, [rfNodes, onRfEdgesChange, setRfEdges, syncToParent])
+  }, [onRfEdgesChange, setRfEdges, syncToParent])
 
   const handleAutoLayout = () => {
-    const laidOut = autoLayout(rfNodes, rfEdges)
+    const laidOut = autoLayout(rfNodesRef.current, rfEdgesRef.current)
     setRfNodes(laidOut)
-    syncToParent(laidOut, rfEdges)
+    syncToParent(laidOut, rfEdgesRef.current)
   }
 
   return (
