@@ -22,17 +22,19 @@ interface EdgeDef {
 interface FlowCanvasProps {
   nodes: AgentNode[]
   edges: EdgeDef[]
+  executionSteps?: { node_id: string; status: string }[] | null
   onNodesChange: (nodes: AgentNode[]) => void
   onEdgesChange: (edges: EdgeDef[]) => void
   onDoubleClickNode: (idx: number) => void
 }
 
-function toRFNode(n: AgentNode, idx: number): Node {
+function toRFNode(n: AgentNode, idx: number, steps?: { node_id: string; status: string }[] | null): Node {
+  const step = steps?.find(s => s.node_id === n.id)
   return {
     id: n.id || String(idx),
     type: 'custom',
     position: { x: n.position_x || 0, y: n.position_y || idx * 120 },
-    data: { type: n.type, label: n.label, config: n.config },
+    data: { type: n.type, label: n.label, config: n.config, status: step?.status || null },
   }
 }
 
@@ -61,7 +63,7 @@ function autoLayout(rfNodes: Node[], rfEdges: Edge[]) {
 }
 
 function FlowCanvasInner({
-  nodes, edges, onNodesChange, onEdgesChange, onDoubleClickNode,
+  nodes, edges, executionSteps, onNodesChange, onEdgesChange, onDoubleClickNode,
 }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition } = useReactFlow()
@@ -103,7 +105,7 @@ function FlowCanvasInner({
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true
-      setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
+      setRfNodes(nodes.map((n, i) => toRFNode(n, i, executionSteps)))
       setRfEdges(edges.map(e => toRFEdge(e, nodes)))
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -119,7 +121,7 @@ function FlowCanvasInner({
         return
       }
       if (nodes.length > 0) {
-        setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
+        setRfNodes(nodes.map((n, i) => toRFNode(n, i, executionSteps)))
         setRfEdges(edges.map(e => toRFEdge(e, nodes)))
       }
     }

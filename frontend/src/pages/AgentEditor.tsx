@@ -28,6 +28,7 @@ function AgentEditor() {
   const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
   const [showRunDialog, setShowRunDialog] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [executionSteps, setExecutionSteps] = useState<{ node_id: string; status: string }[] | null>(null)
 
   useEffect(() => {
     if (!isNew && id) {
@@ -173,6 +174,7 @@ function AgentEditor() {
         <FlowCanvas
           nodes={nodes}
           edges={edges}
+          executionSteps={executionSteps}
           onNodesChange={setNodes}
           onEdgesChange={setEdges}
           onDoubleClickNode={(idx) => setSelectedNodeIdx(idx)}
@@ -189,7 +191,15 @@ function AgentEditor() {
         <RunDialog
           onRun={async (text, mode) => {
             if (!isNew && id) {
-              return await apiRunAgent(id, { message: text }, mode)
+              const res = await apiRunAgent(id, { message: text }, mode)
+              if (res.output) {
+                const steps = (res.output as Record<string, unknown>).execution_steps as { node_id: string; status: string }[] | undefined
+                if (steps) {
+                  setExecutionSteps(steps)
+                  setTimeout(() => setExecutionSteps(null), 5000)
+                }
+              }
+              return res
             }
             throw new Error('请先保存智能体再运行')
           }}

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from typing import Annotated, TypedDict
 
 from langgraph.graph import StateGraph, END
@@ -13,6 +14,7 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     input: dict
     tool_results: dict
+    execution_steps: list
 
 
 def build_graph(
@@ -30,13 +32,11 @@ def build_graph(
         temperature=temperature,
     )
 
-    # Build node lookup and edge adjacency
     node_map = {str(n.id): n for n in nodes}
     children = {str(n.id): [] for n in nodes}
     for e in edges:
         children.setdefault(str(e.source_node_id), []).append(str(e.target_node_id))
 
-    # Topological sort to determine execution order
     in_degree = {k: 0 for k in node_map}
     for e in edges:
         in_degree[str(e.target_node_id)] = in_degree.get(str(e.target_node_id), 0) + 1
@@ -50,59 +50,100 @@ def build_graph(
             if in_degree[child] == 0:
                 queue.append(child)
 
-    # Register all node types as graph nodes
+    # Mark all nodes as pending
+    all_node_ids = {str(n.id) for n in nodes}
+
     graph = StateGraph(AgentState)
+
+    def mark_step(state: AgentState, nid: str, ntype: str, nlabel: str, status: str) -> dict:
+        steps = list(state.get("execution_steps", []))
+        now = datetime.now(timezone.utc).isoformat()
+        for s in steps:
+            if s["node_id"] == nid:
+                s["status"] = status
+                s["completed_at"] = now
+                return {"execution_steps": steps}
+        steps.append({
+            "node_id": nid, "type": ntype, "label": nlabel,
+            "status": status, "started_at": now, "completed_at": now,
+        })
+        return {"execution_steps": steps}
 
     for n in nodes:
         nid = str(n.id)
         ntype = n.type
+        nlabel = n.label or ntype
         nconfig = n.config or {}
 
-        if ntype in ("start", "end"):
+        if ntype == "start":
 
-            def make_passthrough():
+            def make_start_fn(sid, stype, slabel):
                 def fn(state: AgentState) -> dict:
-                    return state
+                    return mark_step(state, sid, stype, slabel, "success")
                 return fn
 
-            graph.add_node(nid, make_passthrough())
+            graph.add_node(nid, make_start_fn(nid, ntype, nlabel))
+
+        elif ntype == "end":
+
+            def make_end_fn(sid, stype, slabel):
+                def fn(state: AgentState) -> dict:
+                    return mark_step(state, sid, stype, slabel, "success")
+                return fn
+
+            graph.add_node(nid, make_end_fn(nid, ntype, nlabel))
 
         elif ntype == "llm":
 
-            def make_llm_fn(llm_nid, llm_config, _llm=llm):
+            def make_llm_fn(sid, stype, slabel, llm_config, _llm=llm):
                 def fn(state: AgentState) -> dict:
+                    # Mark as running
+                    steps = list(state.get("execution_steps", []))
+                    now = datetime.now(timezone.utc).isoformat()
+                    steps.append({"node_id": sid, "type": stype, "label": slabel, "status": "running", "started_at": now})
+                    state = {**state, "execution_steps": steps}
+
                     msgs = state["messages"]
                     tool_results = state.get("tool_results", {})
                     input_data = state.get("input", {})
 
-                    if not msgs:
-                        user_text = str(input_data) if input_data else "Process the request."
-                        system_text = llm_config.get("system_prompt", "")
+                    try:
+                        if not msgs:
+                            user_text = str(input_data) if input_data else "Process the request."
+                            system_text = llm_config.get("system_prompt", "")
 
-                        context = ""
-                        if tool_results:
-                            context = "Previous tool results:\n"
-                            for tool_name, result in tool_results.items():
-                                context += f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}\n"
+                            context = ""
+                            if tool_results:
+                                context = "Previous tool results:\n"
+                                for tool_name, result in tool_results.items():
+                                    context += f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}\n"
 
-                        prompt_parts = []
-                        if system_text:
-                            prompt_parts.append(SystemMessage(content=system_text))
-                        prompt_text = f"{context}\nUser request: {user_text}" if context else user_text
-                        prompt_parts.append(HumanMessage(content=prompt_text))
-                        msgs = prompt_parts
+                            prompt_parts = []
+                            if system_text:
+                                prompt_parts.append(SystemMessage(content=system_text))
+                            prompt_text = f"{context}\nUser request: {user_text}" if context else user_text
+                            prompt_parts.append(HumanMessage(content=prompt_text))
+                            msgs = prompt_parts
 
-                    resp = _llm.invoke(msgs)
-                    return {"messages": [resp], "tool_results": tool_results}
+                        resp = _llm.invoke(msgs)
+                        update = mark_step(state, sid, stype, slabel, "success")
+                        return {"messages": [resp], "tool_results": tool_results, "execution_steps": update.get("execution_steps", [])}
+                    except Exception as e:
+                        update = mark_step(state, sid, stype, slabel, "failed")
+                        return {"messages": [HumanMessage(content=f"Error: {e}")], "tool_results": tool_results, "execution_steps": update.get("execution_steps", [])}
 
                 return fn
 
-            graph.add_node(nid, make_llm_fn(nid, nconfig))
+            graph.add_node(nid, make_llm_fn(nid, ntype, nlabel, nconfig))
 
         elif ntype == "http":
 
-            def make_http_fn(http_nid, http_config):
+            def make_http_fn(sid, stype, slabel, http_config):
                 def fn(state: AgentState) -> dict:
+                    steps = list(state.get("execution_steps", []))
+                    now = datetime.now(timezone.utc).isoformat()
+                    steps.append({"node_id": sid, "type": stype, "label": slabel, "status": "running", "started_at": now})
+
                     url = http_config.get("url", "")
                     method = http_config.get("method", "GET")
                     headers_str = http_config.get("headers", "{}")
@@ -125,17 +166,22 @@ def build_graph(
                     except Exception as e:
                         data = {"error": str(e)}
 
-                    tool_results = {**state.get("tool_results", {}), http_nid: data}
-                    return {"tool_results": tool_results}
+                    tool_results = {**state.get("tool_results", {}), sid: data}
+                    update = mark_step(state, sid, stype, slabel, "failed" if "error" in str(data) else "success")
+                    return {"tool_results": tool_results, "execution_steps": update.get("execution_steps", [])}
 
                 return fn
 
-            graph.add_node(nid, make_http_fn(nid, nconfig))
+            graph.add_node(nid, make_http_fn(nid, ntype, nlabel, nconfig))
 
         elif ntype == "db":
 
-            def make_db_fn(db_nid, db_config):
+            def make_db_fn(sid, stype, slabel, db_config):
                 def fn(state: AgentState) -> dict:
+                    steps = list(state.get("execution_steps", []))
+                    now = datetime.now(timezone.utc).isoformat()
+                    steps.append({"node_id": sid, "type": stype, "label": slabel, "status": "running", "started_at": now})
+
                     conn_str = db_config.get("connection_string", "")
                     query = db_config.get("query", "")
                     try:
@@ -145,17 +191,22 @@ def build_graph(
                             rows = [dict(r._mapping) for r in conn.execute(text(query))]
                     except Exception as e:
                         rows = {"error": str(e)}
-                    tool_results = {**state.get("tool_results", {}), db_nid: rows}
-                    return {"tool_results": tool_results}
+                    tool_results = {**state.get("tool_results", {}), sid: rows}
+                    update = mark_step(state, sid, stype, slabel, "failed" if isinstance(rows, dict) and "error" in rows else "success")
+                    return {"tool_results": tool_results, "execution_steps": update.get("execution_steps", [])}
 
                 return fn
 
-            graph.add_node(nid, make_db_fn(nid, nconfig))
+            graph.add_node(nid, make_db_fn(nid, ntype, nlabel, nconfig))
 
         elif ntype == "code":
 
-            def make_code_fn(code_nid, code_config):
+            def make_code_fn(sid, stype, slabel, code_config):
                 def fn(state: AgentState) -> dict:
+                    steps = list(state.get("execution_steps", []))
+                    now = datetime.now(timezone.utc).isoformat()
+                    steps.append({"node_id": sid, "type": stype, "label": slabel, "status": "running", "started_at": now})
+
                     lang = code_config.get("language", "python")
                     source = code_config.get("source_code", "")
                     try:
@@ -177,14 +228,14 @@ def build_graph(
                             pass
                     except Exception as e:
                         output = str(e)
-                    tool_results = {**state.get("tool_results", {}), code_nid: output}
-                    return {"tool_results": tool_results}
+                    tool_results = {**state.get("tool_results", {}), sid: output}
+                    update = mark_step(state, sid, stype, slabel, "success")
+                    return {"tool_results": tool_results, "execution_steps": update.get("execution_steps", [])}
 
                 return fn
 
-            graph.add_node(nid, make_code_fn(nid, nconfig))
+            graph.add_node(nid, make_code_fn(nid, ntype, nlabel, nconfig))
 
-    # Add edges based on topological order
     for i in range(len(order) - 1):
         graph.add_edge(order[i], order[i + 1])
     if order:

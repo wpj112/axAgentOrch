@@ -45,9 +45,10 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
         final_messages = result.get("messages", [])
         last_message = final_messages[-1] if final_messages else None
         output_content = last_message.content if last_message and hasattr(last_message, "content") else str(result)
+        execution_steps = result.get("execution_steps", [])
 
         execution.status = "success"
-        execution.output = {"result": output_content}
+        execution.output = {"result": output_content, "execution_steps": execution_steps}
         execution.completed_at = datetime.now(timezone.utc)
         await db.commit()
         await db.refresh(execution)
