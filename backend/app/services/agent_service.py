@@ -121,6 +121,7 @@ class AgentService:
 
         agent.updated_at = datetime.now(timezone.utc)
         await self.db.commit()
+        self.db.expire(agent, ['nodes', 'edges'])
         return await self.get_agent(agent.id)
 
     async def delete_agent(self, agent_id: uuid.UUID) -> bool:

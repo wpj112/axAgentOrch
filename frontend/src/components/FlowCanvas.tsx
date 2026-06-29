@@ -73,18 +73,22 @@ function FlowCanvasInner({
 
   const rfNodesRef = useRef(rfNodes)
   const rfEdgesRef = useRef(rfEdges)
-  useEffect(() => { rfNodesRef.current = rfNodes; rfEdgesRef.current = rfEdges }, [rfNodes, rfEdges])
+  const nodesPropRef = useRef(nodes)
+  useEffect(() => { rfNodesRef.current = rfNodes; rfEdgesRef.current = rfEdges; nodesPropRef.current = nodes }, [rfNodes, rfEdges, nodes])
 
-  const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
+    const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
     const idxMap = new Map(nextRfNodes.map((n, i) => [n.id, i]))
-    const agentNodes: AgentNode[] = nextRfNodes.map(n => ({
-      id: n.id,
-      type: (n.data?.type as AgentNode['type']) || 'start',
-      label: n.data?.label || '',
-      config: n.data?.config || {},
-      position_x: n.position.x,
-      position_y: n.position.y,
-    }))
+    const agentNodes: AgentNode[] = nextRfNodes.map(n => {
+      const parent = nodesPropRef.current.find(pn => (pn.id || '') === n.id)
+      return {
+        id: n.id,
+        type: (n.data?.type as AgentNode['type']) || 'start',
+        label: n.data?.label || '',
+        config: parent?.config || n.data?.config || {},
+        position_x: n.position.x,
+        position_y: n.position.y,
+      }
+    })
     const agentEdges: EdgeDef[] = nextRfEdges.map(e => ({
       sourceIdx: idxMap.get(e.source) ?? 0,
       targetIdx: idxMap.get(e.target) ?? 0,
