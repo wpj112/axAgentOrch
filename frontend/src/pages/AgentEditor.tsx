@@ -138,7 +138,7 @@ function AgentEditor() {
               setExecutionSteps(prev => [...(prev || []), { node_id: evt.node_id, status: evt.status }])
             } else if (evt.event === 'done') {
               setExecutionSteps(evt.steps || [])
-              setRunResult({ status: evt.status || 'success', text: '' })
+              setRunResult({ status: evt.status || 'success', text: evt.result || '' })
               setTimeout(() => setExecutionSteps(null), 5000)
             } else if (evt.event === 'error') {
               setRunResult({ status: 'failed', text: evt.message })

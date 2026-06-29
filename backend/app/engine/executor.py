@@ -80,17 +80,22 @@ async def run_agent_stream(
         graph = build_graph(nodes, edges, model=model, api_key=api_key, base_url=base_url, temperature=temperature)
 
         last_steps: list[dict] = []
+        final_result = ""
         async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": []}):
             for node_id, state in event.items():
                 steps = state.get("execution_steps", [])
+                # Capture final LLM output
+                msgs = state.get("messages", [])
+                if msgs:
+                    last_msg = msgs[-1]
+                    final_result = getattr(last_msg, "content", str(last_msg)) if hasattr(last_msg, "content") else str(last_msg)
                 if steps != last_steps:
                     new_steps = [s for s in steps if s not in last_steps]
                     last_steps = steps
                     for step in new_steps:
                         yield f"data: {json.dumps({'event': 'step', **step}, ensure_ascii=False)}\n\n"
 
-        final = last_steps[-1] if last_steps else {}
-        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': last_steps}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': last_steps, 'result': final_result}, ensure_ascii=False)}\n\n"
 
     except Exception as e:
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
