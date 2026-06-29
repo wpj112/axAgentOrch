@@ -22,6 +22,10 @@ app.include_router(agents_router)
 
 # Serve React SPA
 frontend_dir = Path(settings.frontend_dist_dir)
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
+
 if frontend_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_dir / "assets"), name="assets")
 
@@ -35,8 +39,3 @@ if frontend_dir.exists():
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
         return FileResponse(frontend_dir / "index.html")
-
-
-@app.get("/api/health")
-async def health():
-    return {"status": "ok"}
