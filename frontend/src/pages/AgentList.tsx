@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAgents, deleteAgent as apiDeleteAgent, type Agent } from '../api/client'
-import AgentCard from '../components/AgentCard'
+import AgentCard, { apiUrl, copyApiUrl } from '../components/AgentCard'
 
 const btnStyle: React.CSSProperties = {
   padding: '6px 10px', fontSize: 15, border: '1px solid #2a3a5c',
@@ -29,6 +29,7 @@ function AgentList() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'card' | 'list'>('card')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const loadAgents = useCallback(async () => {
     setLoading(true)
@@ -39,8 +40,13 @@ function AgentList() {
 
   useEffect(() => { loadAgents() }, [loadAgents])
 
+  const handleCopy = (id: string) => {
+    copyApiUrl(id)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
+
   const handleDelete = async (id: string) => {
-    if (!window.confirm('确认删除此智能体？')) return
     await apiDeleteAgent(id)
     setAgents((prev) => prev.filter((a) => a.id !== id))
   }
@@ -82,10 +88,11 @@ function AgentList() {
             <thead>
               <tr>
                 <th style={thStyle}>名称</th>
+                <th style={thStyle}>API</th>
                 <th style={thStyle}>描述</th>
-                <th style={{ ...thStyle, textAlign: 'center', width: 80 }}>节点</th>
+                <th style={{ ...thStyle, textAlign: 'center', width: 60 }}>节点</th>
                 <th style={thStyle}>创建时间</th>
-                <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>操作</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: 120 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -94,6 +101,19 @@ function AgentList() {
                   <td style={tdStyle}>
                     <div style={{ fontWeight: 600 }}>{agent.name}</div>
                     {agent.llm_model && <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 2 }}>{agent.llm_model}</div>}
+                  </td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <code style={{ fontSize: 11, color: '#81c784', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                        POST {apiUrl(agent.id)}
+                      </code>
+                      <button
+                        onClick={() => handleCopy(agent.id)}
+                        style={{ padding: '2px 8px', fontSize: 10, border: '1px solid #2a3a5c', borderRadius: 3, cursor: 'pointer', background: copiedId === agent.id ? '#1b3a1e' : 'transparent', color: copiedId === agent.id ? '#81c784' : '#6a7a8a', flexShrink: 0 }}
+                      >
+                        {copiedId === agent.id ? '✓' : '复制'}
+                      </button>
+                    </div>
                   </td>
                   <td style={{ ...tdStyle, color: '#6a7a8a', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {agent.description || '—'}
