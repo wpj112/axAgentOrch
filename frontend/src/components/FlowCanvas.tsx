@@ -155,7 +155,7 @@ function FlowCanvas({
   }
 
   return (
-    <div ref={reactFlowWrapper} style={{ width: '100%', height: 400, border: '1px solid #e0e0e0', borderRadius: 8 }}>
+    <div ref={reactFlowWrapper} style={{ width: '100%', height: 400, border: '1px solid #e0e0e0', borderRadius: 8, position: 'relative' }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
