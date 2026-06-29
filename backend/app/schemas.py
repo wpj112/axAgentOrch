@@ -28,8 +28,8 @@ class NodeResponse(BaseModel):
 
 
 class EdgeCreate(BaseModel):
-    source_node_id: uuid.UUID
-    target_node_id: uuid.UUID
+    source_node_id: int | uuid.UUID
+    target_node_id: int | uuid.UUID
     condition: str | None = None
 
 

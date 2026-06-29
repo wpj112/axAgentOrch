@@ -19,9 +19,8 @@ class AgentService:
         self.db.add(agent)
         await self.db.flush()
 
-        node_id_map: dict[str, uuid.UUID] = {}
-        for i, node_data in enumerate(data.nodes):
-            temp_id = f"temp_{i}"
+        created_nodes: list[Node] = []
+        for node_data in data.nodes:
             node = Node(
                 agent_id=agent.id,
                 type=node_data.type,
@@ -32,17 +31,19 @@ class AgentService:
             )
             self.db.add(node)
             await self.db.flush()
-            node_id_map[temp_id] = node.id
+            created_nodes.append(node)
 
         for edge_data in data.edges:
-            source_temp = f"temp_{next(i for i, n in enumerate(data.nodes) if n == edge_data.source_node_id)}" if isinstance(edge_data.source_node_id, int) else None
-            edge = Edge(
-                agent_id=agent.id,
-                source_node_id=node_id_map[edge_data.source_node_id] if isinstance(edge_data.source_node_id, int) else edge_data.source_node_id,
-                target_node_id=node_id_map[edge_data.target_node_id] if isinstance(edge_data.target_node_id, int) else edge_data.target_node_id,
-                condition=edge_data.condition,
-            )
-            self.db.add(edge)
+            src_idx = int(edge_data.source_node_id) if not isinstance(edge_data.source_node_id, int) else edge_data.source_node_id
+            tgt_idx = int(edge_data.target_node_id) if not isinstance(edge_data.target_node_id, int) else edge_data.target_node_id
+            if 0 <= src_idx < len(created_nodes) and 0 <= tgt_idx < len(created_nodes):
+                edge = Edge(
+                    agent_id=agent.id,
+                    source_node_id=created_nodes[src_idx].id,
+                    target_node_id=created_nodes[tgt_idx].id,
+                    condition=edge_data.condition,
+                )
+                self.db.add(edge)
 
         await self.db.commit()
         return await self.get_agent(agent.id)
@@ -82,7 +83,8 @@ class AgentService:
                 await self.db.delete(node)
             await self.db.flush()
 
-            for i, node_data in enumerate(data.nodes):
+            created_nodes: list[Node] = []
+            for node_data in data.nodes:
                 node = Node(
                     agent_id=agent.id,
                     type=node_data.type,
@@ -92,18 +94,21 @@ class AgentService:
                     position_y=node_data.position_y,
                 )
                 self.db.add(node)
-            await self.db.flush()
+                await self.db.flush()
+                created_nodes.append(node)
 
             if data.edges is not None:
-                nodes_ordered = agent.nodes
                 for edge_data in data.edges:
-                    edge = Edge(
-                        agent_id=agent.id,
-                        source_node_id=edge_data.source_node_id,
-                        target_node_id=edge_data.target_node_id,
-                        condition=edge_data.condition,
-                    )
-                    self.db.add(edge)
+                    src_idx = int(edge_data.source_node_id) if not isinstance(edge_data.source_node_id, int) else edge_data.source_node_id
+                    tgt_idx = int(edge_data.target_node_id) if not isinstance(edge_data.target_node_id, int) else edge_data.target_node_id
+                    if 0 <= src_idx < len(created_nodes) and 0 <= tgt_idx < len(created_nodes):
+                        edge = Edge(
+                            agent_id=agent.id,
+                            source_node_id=created_nodes[src_idx].id,
+                            target_node_id=created_nodes[tgt_idx].id,
+                            condition=edge_data.condition,
+                        )
+                        self.db.add(edge)
 
         agent.updated_at = datetime.now(timezone.utc)
         await self.db.commit()
