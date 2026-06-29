@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from 'react'
 import ReactFlow, {
   Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
+  ReactFlowProvider, useReactFlow,
   type Connection, type Node, type Edge,
   type OnNodesChange, type OnEdgesChange,
 } from 'reactflow'
@@ -59,25 +60,20 @@ function autoLayout(rfNodes: Node[], rfEdges: Edge[]) {
   })
 }
 
-function FlowCanvas({
+function FlowCanvasInner({
   nodes, edges, onNodesChange, onEdgesChange, onDoubleClickNode,
 }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState(
-    nodes.map((n, i) => toRFNode(n, i))
-  )
-  const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState(
-    edges.map(e => toRFEdge(e, nodes))
-  )
+  const { screenToFlowPosition } = useReactFlow()
+  const initializedRef = useRef(false)
+  const syncLockRef = useRef(false)
+
+  const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState([])
+  const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState([])
 
   const rfNodesRef = useRef(rfNodes)
   const rfEdgesRef = useRef(rfEdges)
   useEffect(() => { rfNodesRef.current = rfNodes; rfEdgesRef.current = rfEdges }, [rfNodes, rfEdges])
-
-  useEffect(() => {
-    setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
-    setRfEdges(edges.map(e => toRFEdge(e, nodes)))
-  }, [nodes, edges, setRfNodes, setRfEdges])
 
   const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
     const idxMap = new Map(nextRfNodes.map((n, i) => [n.id, i]))
@@ -94,9 +90,36 @@ function FlowCanvas({
       targetIdx: idxMap.get(e.target) ?? 0,
       condition: e.data?.condition || null,
     }))
+    syncLockRef.current = true
     onNodesChange(agentNodes)
     onEdgesChange(agentEdges)
   }, [onNodesChange, onEdgesChange])
+
+  // Initialize from props once
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
+      setRfEdges(edges.map(e => toRFEdge(e, nodes)))
+    }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync from parent only when the node ID order changes (new agent loaded)
+  const nodeIdKey = nodes.map(n => n.id).join(',')
+  const prevIdKeyRef = useRef(nodeIdKey)
+  useEffect(() => {
+    if (prevIdKeyRef.current !== nodeIdKey) {
+      prevIdKeyRef.current = nodeIdKey
+      if (syncLockRef.current) {
+        syncLockRef.current = false
+        return
+      }
+      if (nodes.length > 0) {
+        setRfNodes(nodes.map((n, i) => toRFNode(n, i)))
+        setRfEdges(edges.map(e => toRFEdge(e, nodes)))
+      }
+    }
+  })  // intentionally runs every render
 
   const onConnect = useCallback((params: Connection) => {
     setRfEdges(eds => {
@@ -116,10 +139,9 @@ function FlowCanvas({
   const onDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault()
     const nodeType = event.dataTransfer.getData('application/reactflow-type')
-    if (!nodeType || !reactFlowWrapper.current) return
+    if (!nodeType) return
 
-    const rect = reactFlowWrapper.current.getBoundingClientRect()
-    const position = { x: event.clientX - rect.left - 75, y: event.clientY - rect.top - 30 }
+    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
 
     const newId = `node_${Date.now()}`
     const newNode: Node = {
@@ -134,12 +156,12 @@ function FlowCanvas({
       syncToParent(next, rfEdgesRef.current)
       return next
     })
-  }, [setRfNodes, syncToParent])
+  }, [screenToFlowPosition, setRfNodes, syncToParent])
 
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    const idx = nodes.findIndex(n => (n.id || '') === node.id)
+    const idx = rfNodesRef.current.findIndex(n => n.id === node.id)
     if (idx >= 0) onDoubleClickNode(idx)
-  }, [nodes, onDoubleClickNode])
+  }, [onDoubleClickNode])
 
   const handleNodesChange: OnNodesChange = useCallback(changes => {
     onRfNodesChange(changes)
@@ -202,6 +224,14 @@ function FlowCanvas({
         自动布局
       </button>
     </div>
+  )
+}
+
+function FlowCanvas(props: FlowCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <FlowCanvasInner {...props} />
+    </ReactFlowProvider>
   )
 }
 
