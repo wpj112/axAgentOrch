@@ -38,6 +38,17 @@ def build_graph(
     all_tools = get_tools()
     available_tools = [t for t in all_tools if t.name in tool_node_types] if tool_node_types else all_tools
 
+    # Build tool config context from node definitions
+    tool_context_parts = []
+    for n in nodes:
+        if n.type == "http" and n.config:
+            tool_context_parts.append(f"HTTP工具: URL={n.config.get('url','')} Method={n.config.get('method','GET')} Headers={n.config.get('headers','{}')} Body={n.config.get('body','{}')}")
+        elif n.type == "db" and n.config:
+            tool_context_parts.append(f"数据库工具: connection={n.config.get('connection_string','')} query={n.config.get('query','')}")
+        elif n.type == "code" and n.config:
+            tool_context_parts.append(f"代码工具: language={n.config.get('language','python')} code={n.config.get('source_code','')}")
+    tool_context = "\n".join(tool_context_parts)
+
     llm_with_tools = llm.bind_tools(available_tools)
     tool_node = ToolNode(available_tools)
 
@@ -46,10 +57,15 @@ def build_graph(
     def call_model(state: AgentState) -> dict:
         messages = state["messages"]
         if not messages:
-            from langchain_core.messages import HumanMessage
+            from langchain_core.messages import HumanMessage, SystemMessage
             input_data = state.get("input", {})
+
+            system_text = "你是一个智能助手，可以使用工具执行操作。"
+            if tool_context:
+                system_text += f"\n\n可用工具配置:\n{tool_context}\n\n当用户需要时，请直接使用上述工具执行操作，不要只描述怎么做。"
+
             input_str = str(input_data) if input_data else "Process the request."
-            messages = [HumanMessage(content=input_str)]
+            messages = [SystemMessage(content=system_text), HumanMessage(content=input_str)]
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 
