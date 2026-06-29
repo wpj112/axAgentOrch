@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, type AgentNode, type AgentEdge } from '../api/client'
 import AgentForm from '../components/AgentForm'
-import NodePanel from '../components/NodePanel'
-import NodeForm from '../components/NodeForm'
+import FlowCanvas from '../components/FlowCanvas'
+import ConfigPanel from '../components/ConfigPanel'
 import RunDialog from '../components/RunDialog'
 
 interface EdgeDef {
   sourceIdx: number
   targetIdx: number
+  condition?: string | null
 }
 
 function AgentEditor() {
@@ -22,8 +23,7 @@ function AgentEditor() {
   const [edges, setEdges] = useState<EdgeDef[]>([])
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
-  const [showNodeForm, setShowNodeForm] = useState(false)
-  const [editingNodeIdx, setEditingNodeIdx] = useState<number | null>(null)
+  const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
   const [showRunDialog, setShowRunDialog] = useState(false)
 
   useEffect(() => {
@@ -102,16 +102,12 @@ function AgentEditor() {
     }
   }
 
-  const handleAddNode = (node: AgentNode) => {
-    if (editingNodeIdx !== null) {
+  const handleSaveNodeConfig = (node: AgentNode) => {
+    if (selectedNodeIdx !== null) {
       const newNodes = [...nodes]
-      newNodes[editingNodeIdx] = node
+      newNodes[selectedNodeIdx] = { ...newNodes[selectedNodeIdx], ...node }
       setNodes(newNodes)
-      setEditingNodeIdx(null)
-    } else {
-      setNodes([...nodes, node])
     }
-    setShowNodeForm(false)
   }
 
   if (loading) return <div>加载中...</div>
@@ -169,43 +165,20 @@ function AgentEditor() {
           />
         </div>
 
-        <div>
-          <NodePanel
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={setNodes}
-            onEdgesChange={setEdges}
-            onAddNode={() => { setEditingNodeIdx(null); setShowNodeForm(true) }}
-            onEditNode={(idx) => { setEditingNodeIdx(idx); setShowNodeForm(true) }}
-          />
-        </div>
+        <FlowCanvas
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={setNodes}
+          onEdgesChange={setEdges}
+          onDoubleClickNode={(idx) => setSelectedNodeIdx(idx)}
+        />
       </div>
 
-      {showNodeForm && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.4)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setShowNodeForm(false); setEditingNodeIdx(null) } }}
-        >
-          <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}>
-            <NodeForm
-              initial={editingNodeIdx !== null ? nodes[editingNodeIdx] : null}
-              onSave={handleAddNode}
-              onCancel={() => { setShowNodeForm(false); setEditingNodeIdx(null) }}
-            />
-          </div>
-        </div>
-      )}
+      <ConfigPanel
+        node={selectedNodeIdx !== null ? nodes[selectedNodeIdx] : null}
+        onSave={handleSaveNodeConfig}
+        onClose={() => setSelectedNodeIdx(null)}
+      />
 
       {showRunDialog && (
         <RunDialog
