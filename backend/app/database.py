@@ -3,7 +3,13 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
 
-engine = create_async_engine(settings.database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://"), echo=False)
+engine = create_async_engine(
+    settings.database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://"),
+    echo=False,
+    pool_size=5,
+    max_overflow=5,
+    pool_recycle=3600,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
