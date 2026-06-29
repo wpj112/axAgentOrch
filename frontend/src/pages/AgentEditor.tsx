@@ -206,15 +206,25 @@ function AgentEditor() {
         >
           {running ? '⏳' : '运行'}
         </button>
-        {runResult && (
-          <div style={{ fontSize: 12, maxWidth: 260, overflow: 'hidden' }}>
-            <span style={{ color: runResult.status === 'success' ? '#81c784' : '#ef9a9a' }}>
-              {runResult.status === 'success' ? '✓ ' : '✗ '}
-            </span>
-            <span style={{ color: '#b0bec5' }}>{runResult.text.slice(0, 100)}</span>
-          </div>
-        )}
       </div>
+
+      {runResult && (
+        <div style={{
+          marginBottom: 16, padding: '10px 14px',
+          background: '#0f1a30', border: '1px solid #2a3a5c', borderRadius: 8,
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <span style={{ color: runResult.status === 'success' ? '#81c784' : '#ef9a9a', fontSize: 14, marginTop: 1 }}>
+            {runResult.status === 'success' ? '✓' : '✗'}
+          </span>
+          <pre style={{ flex: 1, margin: 0, fontSize: 12, color: '#b0bec5', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflow: 'auto' }}>
+            {runResult.text}
+          </pre>
+          <button onClick={() => setRunResult(null)} style={{ padding: '2px 8px', fontSize: 11, border: '1px solid #2a3a5c', borderRadius: 4, cursor: 'pointer', background: 'transparent', color: '#6a7a8a' }}>
+            ✕
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
         <div>
