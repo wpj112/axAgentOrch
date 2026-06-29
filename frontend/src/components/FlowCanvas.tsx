@@ -127,6 +127,15 @@ function FlowCanvasInner({
     }
   })  // intentionally runs every render
 
+  // Update node statuses when executionSteps change
+  useEffect(() => {
+    if (!executionSteps?.length) return
+    setRfNodes(nds => nds.map(n => {
+      const step = executionSteps.find(s => s.node_id === n.id)
+      return step ? { ...n, data: { ...n.data, status: step.status } } : n
+    }))
+  }, [executionSteps, setRfNodes])
+
   const onConnect = useCallback((params: Connection) => {
     setRfEdges(eds => {
       const next = addEdge({

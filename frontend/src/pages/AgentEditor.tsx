@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, fetchExecution, type AgentNode, type AgentEdge } from '../api/client'
+import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, type AgentNode, type AgentEdge } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
-import RunDialog from '../components/RunDialog'
 
 interface EdgeDef {
   sourceIdx: number
@@ -26,9 +25,12 @@ function AgentEditor() {
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
-  const [showRunDialog, setShowRunDialog] = useState(false)
   const [saved, setSaved] = useState(false)
   const [executionSteps, setExecutionSteps] = useState<{ node_id: string; status: string }[] | null>(null)
+  const [runText, setRunText] = useState('')
+  const [runMode, setRunMode] = useState<'sync' | 'async'>('sync')
+  const [running, setRunning] = useState(false)
+  const [runResult, setRunResult] = useState<{ status: string; text: string } | null>(null)
 
   useEffect(() => {
     if (!isNew && id) {
@@ -131,18 +133,6 @@ function AgentEditor() {
           {saved && <span style={{ color: '#81c784', fontSize: 12 }}>✓ 已保存</span>}
           {saving && <span style={{ color: '#ffb74d', fontSize: 12 }}>保存中...</span>}
           <button
-            onClick={() => setShowRunDialog(true)}
-            disabled={nodes.length === 0}
-            style={{
-              padding: '8px 20px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 6,
-              cursor: nodes.length === 0 ? 'not-allowed' : 'pointer',
-              background: '#1b3a1e', color: '#81c784',
-              opacity: nodes.length === 0 ? 0.5 : 1,
-            }}
-          >
-            运行
-          </button>
-          <button
             onClick={handleSave}
             disabled={saving}
             style={{
@@ -187,28 +177,65 @@ function AgentEditor() {
         onClose={() => setSelectedNodeIdx(null)}
       />
 
-      {showRunDialog && (
-        <RunDialog
-          onRun={async (text, mode) => {
-            if (!isNew && id) {
-              const res = await apiRunAgent(id, { message: text }, mode)
+      <div style={{
+        marginTop: 12, padding: '10px 14px',
+        background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 8,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <div style={{ display: 'flex', gap: 12, fontSize: 13, marginRight: 8 }}>
+          <label style={{ cursor: 'pointer', color: runMode === 'sync' ? '#90caf9' : '#6a7a8a' }}>
+            <input type="radio" checked={runMode === 'sync'} onChange={() => setRunMode('sync')} /> 同步
+          </label>
+          <label style={{ cursor: 'pointer', color: runMode === 'async' ? '#90caf9' : '#6a7a8a' }}>
+            <input type="radio" checked={runMode === 'async'} onChange={() => setRunMode('async')} /> 异步
+          </label>
+        </div>
+        <input
+          value={runText}
+          onChange={e => setRunText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !running && runText.trim() && !isNew && id) {
+            setRunResult(null); setRunning(true)
+            apiRunAgent(id, { message: runText }, runMode).then(res => {
+              setRunResult(res.output ? { status: res.status, text: JSON.stringify(res.output, null, 2) } : { status: res.status, text: res.error_message || '' })
               if (res.output) {
                 const steps = (res.output as Record<string, unknown>).execution_steps as { node_id: string; status: string }[] | undefined
-                if (steps) {
-                  setExecutionSteps(steps)
-                  setTimeout(() => setExecutionSteps(null), 5000)
-                }
+                if (steps) { setExecutionSteps(steps); setTimeout(() => setExecutionSteps(null), 5000) }
               }
-              return res
-            }
-            throw new Error('请先保存智能体再运行')
-          }}
-          onPoll={async (executionId) => {
-            return await fetchExecution(executionId)
-          }}
-          onClose={() => setShowRunDialog(false)}
+              setRunning(false)
+            }).catch(err => { setRunResult({ status: 'failed', text: String(err) }); setRunning(false) })
+          }}}
+          placeholder="输入 message，按 Enter 运行..."
+          style={{ flex: 1, padding: '8px 14px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, background: '#0f1a30', color: '#e0e0e0' }}
+          disabled={isNew}
         />
-      )}
+        <button
+          onClick={async () => {
+            if (!runText.trim() || isNew || !id) return
+            setRunResult(null); setRunning(true)
+            try {
+              const res = await apiRunAgent(id, { message: runText }, runMode)
+              setRunResult(res.output ? { status: res.status, text: JSON.stringify(res.output, null, 2) } : { status: res.status, text: res.error_message || '' })
+              if (res.output) {
+                const steps = (res.output as Record<string, unknown>).execution_steps as { node_id: string; status: string }[] | undefined
+                if (steps) { setExecutionSteps(steps); setTimeout(() => setExecutionSteps(null), 5000) }
+              }
+            } catch (err) { setRunResult({ status: 'failed', text: String(err) }) }
+            finally { setRunning(false) }
+          }}
+          disabled={running || isNew}
+          style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 6, cursor: running ? 'not-allowed' : 'pointer', background: '#1b3a1e', color: '#81c784', opacity: running ? 0.5 : 1, whiteSpace: 'nowrap' }}
+        >
+          {running ? '⏳' : '运行'}
+        </button>
+        {runResult && (
+          <div style={{ fontSize: 12, maxWidth: 260, overflow: 'hidden' }}>
+            <span style={{ color: runResult.status === 'success' ? '#81c784' : '#ef9a9a' }}>
+              {runResult.status === 'success' ? '✓ ' : '✗ '}
+            </span>
+            <span style={{ color: '#b0bec5' }}>{runResult.text.slice(0, 100)}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
