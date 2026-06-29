@@ -238,6 +238,14 @@ function AgentEditor() {
             onChangeLlmModel={setLlmModel}
             onChangeLlmTemperature={setLlmTemperature}
           />
+
+          <div style={{
+            marginTop: 12, padding: '8px 10px', borderRadius: 8,
+            background: '#1e2a4a', border: '1px solid #2a3a5c',
+            fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
+          }}>
+            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 拖拽 Handle <strong style={{ color: '#b0bec5' }}>连线</strong> · <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除
+          </div>
         </div>
 
         <FlowCanvas
@@ -255,15 +263,6 @@ function AgentEditor() {
         onSave={handleSaveNodeConfig}
         onClose={() => setSelectedNodeIdx(null)}
       />
-
-      <div style={{
-        position: 'fixed', bottom: 16, left: 16, zIndex: 50,
-        padding: '8px 14px', borderRadius: 8,
-        background: '#1e2a4a', border: '1px solid #2a3a5c',
-        fontSize: 12, color: '#6a7a8a', lineHeight: 1.6,
-      }}>
-        💡 从左上角面板<strong style={{ color: '#b0bec5' }}>拖拽</strong>节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑配置 · 底部 Handle <strong style={{ color: '#b0bec5' }}>连线</strong> · <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除
-      </div>
     </div>
   )
 }
