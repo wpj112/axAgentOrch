@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -95,8 +95,40 @@ async def delete_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{agent_id}/run", response_model=RunResponse)
-async def run_agent(agent_id: uuid.UUID, data: RunRequest, db: AsyncSession = Depends(get_db)):
+async def run_agent(
+    agent_id: uuid.UUID,
+    data: RunRequest,
+    mode: str = Query(default="sync"),
+    db: AsyncSession = Depends(get_db),
+):
     service = AgentService(db)
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    if mode == "async":
+        from datetime import datetime, timezone
+        from app.models import Execution
+        from app.engine.async_task import run_agent_async
+
+        execution = Execution(
+            agent_id=agent_id,
+            input=data.input,
+            status="pending",
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(execution)
+        await db.commit()
+        await db.refresh(execution)
+
+        task = run_agent_async.delay(str(agent_id), data.input, str(execution.id))
+        return RunResponse(
+            execution_id=execution.id,
+            status="pending",
+            output={"task_id": task.id},
+            error_message=None,
+        )
+
     execution = await service.run_agent(agent_id, data.input)
     return RunResponse(
         execution_id=execution.id,

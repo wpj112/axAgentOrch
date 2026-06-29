@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, type AgentNode, type AgentEdge } from '../api/client'
+import { fetchAgent, createAgent, updateAgent, runAgent as apiRunAgent, fetchExecution, type AgentNode, type AgentEdge } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
@@ -196,11 +196,14 @@ function AgentEditor() {
 
       {showRunDialog && (
         <RunDialog
-          onRun={async (input) => {
+          onRun={async (input, mode) => {
             if (!isNew && id) {
-              return await apiRunAgent(id, input)
+              return await apiRunAgent(id, input, mode)
             }
             throw new Error('请先保存智能体再运行')
+          }}
+          onPoll={async (executionId) => {
+            return await fetchExecution(executionId)
           }}
           onClose={() => setShowRunDialog(false)}
         />

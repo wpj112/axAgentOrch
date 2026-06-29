@@ -102,8 +102,14 @@ export async function deleteAgent(id: string): Promise<void> {
   await api.delete(`/agents/${id}`)
 }
 
-export async function runAgent(id: string, input: Record<string, unknown>): Promise<RunResponse> {
-  const { data } = await api.post<RunResponse>(`/agents/${id}/run`, { input })
+export async function runAgent(id: string, input: Record<string, unknown>, mode: 'sync' | 'async' = 'sync'): Promise<RunResponse> {
+  const params = mode === 'async' ? { mode: 'async' } : {}
+  const { data } = await api.post<RunResponse>(`/agents/${id}/run`, { input }, { params })
+  return data
+}
+
+export async function fetchExecution(id: string): Promise<Execution> {
+  const { data } = await api.get<Execution>(`/agents/executions/${id}`)
   return data
 }
 
