@@ -196,9 +196,9 @@ function AgentEditor() {
 
       {showRunDialog && (
         <RunDialog
-          onRun={async (input, mode) => {
+          onRun={async (text, mode) => {
             if (!isNew && id) {
-              return await apiRunAgent(id, input, mode)
+              return await apiRunAgent(id, { message: text }, mode)
             }
             throw new Error('请先保存智能体再运行')
           }}

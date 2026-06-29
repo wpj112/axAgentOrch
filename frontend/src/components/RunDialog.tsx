@@ -1,20 +1,20 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import type { RunResponse, Execution } from '../api/client'
 
 interface RunDialogProps {
-  onRun: (input: Record<string, unknown>, mode: 'sync' | 'async') => Promise<RunResponse>
+  onRun: (text: string, mode: 'sync' | 'async') => Promise<RunResponse>
   onPoll: (executionId: string) => Promise<Execution>
   onClose: () => void
 }
 
-const darkInput: React.CSSProperties = {
-  width: '100%', padding: '8px 12px', fontFamily: 'monospace', fontSize: 13,
+const textareaStyle: React.CSSProperties = {
+  width: '100%', padding: '10px 12px', fontSize: 14,
   border: '1px solid #2a3a5c', borderRadius: 6, boxSizing: 'border-box',
   resize: 'vertical', background: '#0f1a30', color: '#e0e0e0',
 }
 
 function RunDialog({ onRun, onPoll, onClose }: RunDialogProps) {
-  const [inputText, setInputText] = useState('{\n  \n}')
+  const [text, setText] = useState('')
   const [mode, setMode] = useState<'sync' | 'async'>('sync')
   const [result, setResult] = useState<RunResponse | null>(null)
   const [running, setRunning] = useState(false)
@@ -22,12 +22,12 @@ function RunDialog({ onRun, onPoll, onClose }: RunDialogProps) {
   const pollRef = useRef<ReturnType<typeof setInterval>>()
 
   const handleRun = async () => {
+    if (!text.trim()) return
     setError(null)
     setResult(null)
     setRunning(true)
     try {
-      const input = JSON.parse(inputText)
-      const res = await onRun(input, mode)
+      const res = await onRun(text, mode)
 
       if (mode === 'async' && res.status === 'pending') {
         const execId = res.execution_id
@@ -47,8 +47,7 @@ function RunDialog({ onRun, onPoll, onClose }: RunDialogProps) {
         setRunning(false)
       }
     } catch (e) {
-      if (e instanceof SyntaxError) setError('输入不是有效的 JSON')
-      else setError(String(e))
+      setError(String(e))
       setRunning(false)
     }
   }
@@ -76,8 +75,17 @@ function RunDialog({ onRun, onPoll, onClose }: RunDialogProps) {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }}>输入 (JSON)</label>
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} rows={5} style={darkInput} />
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }}>输入内容</label>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="输入你想对智能体说的话..."
+            rows={4}
+            style={textareaStyle}
+            onKeyDown={(e) => {
+              if (e.ctrlKey && e.key === 'Enter') handleRun()
+            }}
+          />
         </div>
 
         {error && <div style={{ color: '#ef9a9a', fontSize: 13, marginBottom: 10 }}>{error}</div>}
