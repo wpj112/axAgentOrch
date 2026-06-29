@@ -147,38 +147,8 @@ function AgentEditor() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
-        <div>
-          <AgentForm
-            name={name}
-            description={description}
-            llmModel={llmModel}
-            llmTemperature={llmTemperature}
-            onChangeName={setName}
-            onChangeDescription={setDescription}
-            onChangeLlmModel={setLlmModel}
-            onChangeLlmTemperature={setLlmTemperature}
-          />
-        </div>
-
-        <FlowCanvas
-          nodes={nodes}
-          edges={edges}
-          executionSteps={executionSteps}
-          onNodesChange={setNodes}
-          onEdgesChange={setEdges}
-          onDoubleClickNode={(idx) => setSelectedNodeIdx(idx)}
-        />
-      </div>
-
-      <ConfigPanel
-        node={selectedNodeIdx !== null ? nodes[selectedNodeIdx] : null}
-        onSave={handleSaveNodeConfig}
-        onClose={() => setSelectedNodeIdx(null)}
-      />
-
       <div style={{
-        marginTop: 12, padding: '10px 14px',
+        marginBottom: 16, padding: '10px 14px',
         background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 8,
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
@@ -236,6 +206,36 @@ function AgentEditor() {
           </div>
         )}
       </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+        <div>
+          <AgentForm
+            name={name}
+            description={description}
+            llmModel={llmModel}
+            llmTemperature={llmTemperature}
+            onChangeName={setName}
+            onChangeDescription={setDescription}
+            onChangeLlmModel={setLlmModel}
+            onChangeLlmTemperature={setLlmTemperature}
+          />
+        </div>
+
+        <FlowCanvas
+          nodes={nodes}
+          edges={edges}
+          executionSteps={executionSteps}
+          onNodesChange={setNodes}
+          onEdgesChange={setEdges}
+          onDoubleClickNode={(idx) => setSelectedNodeIdx(idx)}
+        />
+      </div>
+
+      <ConfigPanel
+        node={selectedNodeIdx !== null ? nodes[selectedNodeIdx] : null}
+        onSave={handleSaveNodeConfig}
+        onClose={() => setSelectedNodeIdx(null)}
+      />
     </div>
   )
 }
