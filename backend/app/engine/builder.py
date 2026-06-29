@@ -67,6 +67,42 @@ def build_graph(nodes: list, edges: list) -> StateGraph:
     graph.add_node("agent", call_model)
     graph.add_node("tools", tool_node)
 
+    node_id_map = {str(n.id): str(n.id) for n in nodes}
+
+    # Separate unconditional and conditional edges
+    normal_edges = [e for e in edges if not e.condition]
+    cond_edges = [e for e in edges if e.condition]
+
+    for e in normal_edges:
+        src = str(e.source_node_id)
+        tgt = str(e.target_node_id)
+        if src in node_id_map and tgt in node_id_map:
+            graph.add_edge(src, tgt)
+
+    for e in cond_edges:
+        src = str(e.source_node_id)
+        tgt = str(e.target_node_id)
+        cond_str = e.condition
+
+        if src not in node_id_map or tgt not in node_id_map:
+            continue
+
+        def make_route_fn(target_id, condition):
+            def route(state):
+                messages = state.get("messages", [])
+                if not messages:
+                    return END
+                last = messages[-1]
+                content = str(getattr(last, 'content', ''))
+                if condition and condition in content:
+                    return target_id
+                return END
+            return route
+
+        route_fn = make_route_fn(tgt, cond_str)
+        path_map = {tgt: tgt, END: END}
+        graph.add_conditional_edges(src, route_fn, path_map)
+
     graph.set_entry_point("agent")
     graph.add_conditional_edges("agent", route_tools, {"tools": "tools", "end": END})
     graph.add_edge("tools", "agent")
