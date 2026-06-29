@@ -1,10 +1,10 @@
+import json
 from typing import Annotated, TypedDict
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from app.config import settings
 
@@ -12,11 +12,7 @@ from app.config import settings
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     input: dict
-
-
-def get_tools():
-    from app.engine.tools import http_call, db_query, run_code
-    return [http_call, db_query, run_code]
+    tool_results: dict
 
 
 def build_graph(
@@ -34,55 +30,161 @@ def build_graph(
         temperature=temperature,
     )
 
-    tool_node_types = {n.type for n in nodes if n.type in ("http", "db", "code")}
-    all_tools = get_tools()
-    available_tools = [t for t in all_tools if t.name in tool_node_types] if tool_node_types else all_tools
+    # Build node lookup and edge adjacency
+    node_map = {str(n.id): n for n in nodes}
+    children = {str(n.id): [] for n in nodes}
+    for e in edges:
+        children.setdefault(str(e.source_node_id), []).append(str(e.target_node_id))
 
-    # Build tool config context from node definitions
-    tool_context_parts = []
-    for n in nodes:
-        if n.type == "http" and n.config:
-            tool_context_parts.append(f"HTTP工具: URL={n.config.get('url','')} Method={n.config.get('method','GET')} Headers={n.config.get('headers','{}')} Body={n.config.get('body','{}')}")
-        elif n.type == "db" and n.config:
-            tool_context_parts.append(f"数据库工具: connection={n.config.get('connection_string','')} query={n.config.get('query','')}")
-        elif n.type == "code" and n.config:
-            tool_context_parts.append(f"代码工具: language={n.config.get('language','python')} code={n.config.get('source_code','')}")
-    tool_context = "\n".join(tool_context_parts)
+    # Topological sort to determine execution order
+    in_degree = {k: 0 for k in node_map}
+    for e in edges:
+        in_degree[str(e.target_node_id)] = in_degree.get(str(e.target_node_id), 0) + 1
+    order = []
+    queue = [nid for nid, deg in in_degree.items() if deg == 0]
+    while queue:
+        nid = queue.pop(0)
+        order.append(nid)
+        for child in children.get(nid, []):
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                queue.append(child)
 
-    llm_with_tools = llm.bind_tools(available_tools)
-    tool_node = ToolNode(available_tools)
-
+    # Register all node types as graph nodes
     graph = StateGraph(AgentState)
 
-    def call_model(state: AgentState) -> dict:
-        messages = state["messages"]
-        if not messages:
-            from langchain_core.messages import HumanMessage, SystemMessage
-            input_data = state.get("input", {})
+    for n in nodes:
+        nid = str(n.id)
+        ntype = n.type
+        nconfig = n.config or {}
 
-            system_text = "你是一个智能助手，可以使用工具执行操作。"
-            if tool_context:
-                system_text += f"\n\n可用工具配置:\n{tool_context}\n\n当用户需要时，请直接使用上述工具执行操作，不要只描述怎么做。"
+        if ntype in ("start", "end"):
 
-            input_str = str(input_data) if input_data else "Process the request."
-            messages = [SystemMessage(content=system_text), HumanMessage(content=input_str)]
-        response = llm_with_tools.invoke(messages)
-        return {"messages": [response]}
+            def make_passthrough():
+                def fn(state: AgentState) -> dict:
+                    return state
+                return fn
 
-    def route_tools(state: AgentState) -> str:
-        messages = state["messages"]
-        if not messages:
-            return "end"
-        last_message = messages[-1]
-        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-            return "tools"
-        return "end"
+            graph.add_node(nid, make_passthrough())
 
-    graph.add_node("agent", call_model)
-    graph.add_node("tools", tool_node)
+        elif ntype == "llm":
 
-    graph.set_entry_point("agent")
-    graph.add_conditional_edges("agent", route_tools, {"tools": "tools", "end": END})
-    graph.add_edge("tools", "agent")
+            def make_llm_fn(llm_nid, _llm=llm):
+                def fn(state: AgentState) -> dict:
+                    msgs = state["messages"]
+                    tool_results = state.get("tool_results", {})
+                    input_data = state.get("input", {})
+
+                    if not msgs:
+                        user_text = str(input_data) if input_data else "Process the request."
+
+                        # Build context from tool results
+                        context = ""
+                        if tool_results:
+                            context = "Previous tool results:\n"
+                            for tool_name, result in tool_results.items():
+                                context += f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}\n"
+
+                        prompt = f"{context}\nUser request: {user_text}"
+                        msgs = [HumanMessage(content=prompt)]
+
+                    resp = _llm.invoke(msgs)
+                    return {"messages": [resp], "tool_results": tool_results}
+
+                return fn
+
+            graph.add_node(nid, make_llm_fn(nid))
+
+        elif ntype == "http":
+
+            def make_http_fn(http_nid, http_config):
+                def fn(state: AgentState) -> dict:
+                    url = http_config.get("url", "")
+                    method = http_config.get("method", "GET")
+                    headers_str = http_config.get("headers", "{}")
+                    body_str = http_config.get("body", "{}")
+                    try:
+                        headers = json.loads(headers_str) if isinstance(headers_str, str) else headers_str
+                    except Exception:
+                        headers = {}
+                    try:
+                        body = json.loads(body_str) if isinstance(body_str, str) else body_str
+                    except Exception:
+                        body = {}
+
+                    try:
+                        import httpx
+                        with httpx.Client(timeout=30) as client:
+                            resp = client.request(method=method, url=url, headers=headers, json=body if method.upper() in ("POST", "PUT", "PATCH") else None)
+                            resp.raise_for_status()
+                            data = resp.json() if "application/json" in resp.headers.get("content-type", "") else resp.text
+                    except Exception as e:
+                        data = {"error": str(e)}
+
+                    tool_results = {**state.get("tool_results", {}), http_nid: data}
+                    return {"tool_results": tool_results}
+
+                return fn
+
+            graph.add_node(nid, make_http_fn(nid, nconfig))
+
+        elif ntype == "db":
+
+            def make_db_fn(db_nid, db_config):
+                def fn(state: AgentState) -> dict:
+                    conn_str = db_config.get("connection_string", "")
+                    query = db_config.get("query", "")
+                    try:
+                        from sqlalchemy import create_engine, text
+                        engine = create_engine(conn_str)
+                        with engine.connect() as conn:
+                            rows = [dict(r._mapping) for r in conn.execute(text(query))]
+                    except Exception as e:
+                        rows = {"error": str(e)}
+                    tool_results = {**state.get("tool_results", {}), db_nid: rows}
+                    return {"tool_results": tool_results}
+
+                return fn
+
+            graph.add_node(nid, make_db_fn(nid, nconfig))
+
+        elif ntype == "code":
+
+            def make_code_fn(code_nid, code_config):
+                def fn(state: AgentState) -> dict:
+                    lang = code_config.get("language", "python")
+                    source = code_config.get("source_code", "")
+                    try:
+                        import subprocess, tempfile, os
+                        with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
+                            ctx = state.get("tool_results", {})
+                            if lang == "python":
+                                f.write(f"import json\n_ctx = {json.dumps(ctx)}\n")
+                            f.write(source)
+                            tmp = f.name
+                        if lang == "python":
+                            result = subprocess.run(["python", tmp], capture_output=True, text=True, timeout=15)
+                        else:
+                            result = subprocess.run(["node", tmp], capture_output=True, text=True, timeout=15)
+                        output = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+                        try:
+                            os.unlink(tmp)
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        output = str(e)
+                    tool_results = {**state.get("tool_results", {}), code_nid: output}
+                    return {"tool_results": tool_results}
+
+                return fn
+
+            graph.add_node(nid, make_code_fn(nid, nconfig))
+
+    # Add edges based on topological order
+    for i in range(len(order) - 1):
+        graph.add_edge(order[i], order[i + 1])
+    if order:
+        graph.set_entry_point(order[0])
+        graph.add_edge(order[-1], END)
 
     return graph.compile()
