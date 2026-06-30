@@ -5,9 +5,9 @@ const defaultIfElseBranches = `weather = weather
 chat = chat`
 
 const defaultLoopCondition = JSON.stringify({
-  variable_selector: ["node_id", "field"],
-  operator: "lt",
-  value: 0.8
+  variable_selector: ['node_id', 'field'],
+  operator: 'lt',
+  value: 0.8,
 }, null, 2)
 
 interface NodeFormProps {
@@ -56,6 +56,27 @@ function deriveIfElseFields(config: Record<string, string>): Record<string, stri
   return next
 }
 
+function deriveLoopFields(config: Record<string, string>): Record<string, string> {
+  const next = { ...config }
+  if (!next.condition_json) {
+    const rawCondition = next.condition
+    if (rawCondition) {
+      try {
+        const parsed = JSON.parse(rawCondition)
+        next.condition_json = JSON.stringify(parsed, null, 2)
+      } catch {
+        next.condition_json = rawCondition
+      }
+    } else {
+      next.condition_json = defaultLoopCondition
+    }
+  }
+  if (!next.max_iterations) next.max_iterations = '5'
+  if (!next.start_node_id) next.start_node_id = ''
+  if (!next.end_node_id) next.end_node_id = ''
+  return next
+}
+
 function parseIfElseBranches(fieldPath: string, operator: string, branchesText: string) {
   const selector = fieldPath.split('.').map((part) => part.trim()).filter(Boolean)
   const branches = branchesText
@@ -101,7 +122,13 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
       for (const [k, v] of Object.entries(initial.config)) {
         flat[k] = typeof v === 'string' ? v : JSON.stringify(v)
       }
-      setConfig(initial.type === 'if_else' ? deriveIfElseFields(flat) : flat)
+      if (initial.type === 'if_else') {
+        setConfig(deriveIfElseFields(flat))
+      } else if (initial.type === 'loop') {
+        setConfig(deriveLoopFields(flat))
+      } else {
+        setConfig(flat)
+      }
     } else {
       setConfig({})
     }
@@ -122,14 +149,13 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
       delete finalConfig.cases_json
     }
     if (type === 'loop') {
-      try { finalConfig.condition = JSON.parse((config.condition_json as string) || '{}') } catch { finalConfig.condition = {} }
-      finalConfig.max_iterations = parseInt((config.max_iterations as string) || '5', 10)
+      let parsedCondition: Record<string, unknown> = {}
+      try { parsedCondition = JSON.parse(config.condition_json || '{}') } catch { parsedCondition = {} }
+      finalConfig.condition = parsedCondition
+      finalConfig.max_iterations = parseInt(config.max_iterations || '5', 10)
       finalConfig.start_node_id = config.start_node_id || ''
       finalConfig.end_node_id = config.end_node_id || ''
       delete finalConfig.condition_json
-      delete finalConfig.max_iterations
-      delete finalConfig.start_node_id
-      delete finalConfig.end_node_id
     }
     onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: parentId || null })
   }
@@ -137,6 +163,10 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
   const setConfigField = (key: string, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
+
+  const loopChildren = type === 'loop' && initial?.id && allNodes
+    ? allNodes.filter((node) => node.parent_id === initial.id)
+    : []
 
   return (
     <div style={{ padding: 20, minWidth: 340, color: '#e0e0e0' }}>
@@ -160,14 +190,14 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
 
       {allNodes && allNodes.length > 1 && (
         <div style={fieldStyle}>
-          <label style={labelStyle}>从属于 (parent_id)</label>
+          <label style={labelStyle}>加入循环体</label>
           <select
             value={parentId}
             onChange={(e) => setParentId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">无（独立节点）</option>
-            {allNodes.filter(n => n.id !== initial?.id && n.type === 'loop').map(n => (
+            <option value="">无（留在主流程）</option>
+            {allNodes.filter((n) => n.id !== initial?.id && n.type === 'loop').map((n) => (
               <option key={n.id} value={n.id}>{n.label} (loop)</option>
             ))}
           </select>
@@ -297,15 +327,30 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
             <textarea value={config.condition_json || defaultLoopCondition} onChange={(e) => setConfigField('condition_json', e.target.value)} rows={5} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Start Node ID</label>
-            <input value={config.start_node_id || ''} onChange={(e) => setConfigField('start_node_id', e.target.value)} placeholder="循环体第一个节点ID" style={inputStyle} />
+            <label style={labelStyle}>循环体起点</label>
+            <select value={config.start_node_id || ''} onChange={(e) => setConfigField('start_node_id', e.target.value)} style={inputStyle} disabled={!loopChildren.length}>
+              <option value="">未设置</option>
+              {loopChildren.map((node) => (
+                <option key={node.id} value={node.id}>{node.label} ({node.type})</option>
+              ))}
+            </select>
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>End Node ID</label>
-            <input value={config.end_node_id || ''} onChange={(e) => setConfigField('end_node_id', e.target.value)} placeholder="循环体最后一个节点ID" style={inputStyle} />
+            <label style={labelStyle}>循环体终点</label>
+            <select value={config.end_node_id || ''} onChange={(e) => setConfigField('end_node_id', e.target.value)} style={inputStyle} disabled={!loopChildren.length}>
+              <option value="">未设置</option>
+              {loopChildren.map((node) => (
+                <option key={node.id} value={node.id}>{node.label} ({node.type})</option>
+              ))}
+            </select>
           </div>
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
-            循环体内节点需设置 parent_id=此节点ID。出口边可双击命名为 `loop_exit`。
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4, lineHeight: 1.6 }}>
+            {loopChildren.length
+              ? `当前循环体里有 ${loopChildren.length} 个节点。选中 loop 时，画布会高亮这组节点。`
+              : '先把节点加入这个 loop 容器，起点/终点下拉里才会出现可选项。'}
+          </div>
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 8 }}>
+            loop 连到外部结束节点的边请命名为 `loop_exit`。
           </div>
         </>
       )}

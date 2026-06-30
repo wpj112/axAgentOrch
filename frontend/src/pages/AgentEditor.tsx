@@ -13,6 +13,15 @@ interface EdgeDef {
   condition?: string | null
 }
 
+interface ExecutionStep {
+  node_id: string
+  type?: string
+  label?: string
+  status: string
+  started_at?: string
+  completed_at?: string
+}
+
 function AgentEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -28,10 +37,11 @@ function AgentEditor() {
   const [saving, setSaving] = useState(false)
   const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
-  const [executionSteps, setExecutionSteps] = useState<{ node_id: string; status: string }[] | null>(null)
+  const [executionSteps, setExecutionSteps] = useState<ExecutionStep[] | null>(null)
   const [runText, setRunText] = useState('')
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<{ status: string; text: string } | null>(null)
+  const [runDialogOpen, setRunDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!isNew && id) {
@@ -118,7 +128,8 @@ function AgentEditor() {
         const detail = typeof err.response?.data === 'string'
           ? err.response.data
           : JSON.stringify(err.response?.data ?? err.message, null, 2)
-        alert(`保存失败:\n${detail}`)
+        alert(`保存失败:
+${detail}`)
       } else {
         alert('保存失败: ' + String(err))
       }
@@ -129,9 +140,23 @@ function AgentEditor() {
 
   const handleSave = () => doSave(name, description, nodes, edges, llmModel, llmTemperature)
 
+  const openRunDialog = () => {
+    setRunDialogOpen(true)
+    setRunResult(null)
+    setExecutionSteps(null)
+  }
+
+  const closeRunDialog = () => {
+    if (running) return
+    setRunDialogOpen(false)
+  }
+
   const doRun = async () => {
     if (!runText.trim() || isNew || !id) return
-    setRunResult(null); setRunning(true); setExecutionSteps([])
+    setRunDialogOpen(true)
+    setRunResult(null)
+    setRunning(true)
+    setExecutionSteps([])
     try {
       const resp = await fetch(`/api/agents/${id}/run?mode=stream`, {
         method: 'POST',
@@ -150,23 +175,30 @@ function AgentEditor() {
         const lines = buf.split('\n')
         buf = lines.pop() || ''
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const evt = JSON.parse(line.slice(6))
-            if (evt.event === 'step') {
-              setExecutionSteps(prev => [...(prev || []), { node_id: evt.node_id, status: evt.status }])
-            } else if (evt.event === 'done') {
-              setExecutionSteps(evt.steps || [])
-              setRunResult({ status: evt.status || 'success', text: evt.result || '' })
-              setTimeout(() => setExecutionSteps(null), 5000)
-            } else if (evt.event === 'error') {
-              setRunResult({ status: 'failed', text: evt.message })
-            }
+          if (!line.startsWith('data: ')) continue
+          const evt = JSON.parse(line.slice(6))
+          if (evt.event === 'step') {
+            setExecutionSteps((prev) => [...(prev || []), {
+              node_id: evt.node_id,
+              type: evt.type,
+              label: evt.label,
+              status: evt.status,
+              started_at: evt.started_at,
+              completed_at: evt.completed_at,
+            }])
+          } else if (evt.event === 'done') {
+            setExecutionSteps((evt.steps || []) as ExecutionStep[])
+            setRunResult({ status: evt.status || 'success', text: evt.result || '' })
+          } else if (evt.event === 'error') {
+            setRunResult({ status: 'failed', text: evt.message })
           }
         }
       }
     } catch (err) {
       setRunResult({ status: 'failed', text: String(err) })
-    } finally { setRunning(false) }
+    } finally {
+      setRunning(false)
+    }
   }
 
   const handleSaveNodeConfig = (node: AgentNode) => {
@@ -176,6 +208,10 @@ function AgentEditor() {
     setNodes(newNodes)
     doSave(name, description, newNodes, edges, llmModel, llmTemperature)
   }
+
+  const currentExecutionStep = executionSteps
+    ? [...executionSteps].reverse().find((step) => step.status === 'running') || executionSteps[executionSteps.length - 1]
+    : null
 
   if (loading) return <div style={{ color: '#b0bec5' }}>加载中...</div>
 
@@ -190,6 +226,16 @@ function AgentEditor() {
           {saved && <span style={{ color: '#81c784', fontSize: 12 }}>✓ 已保存</span>}
           {saving && <span style={{ color: '#ffb74d', fontSize: 12 }}>保存中...</span>}
           <button
+            onClick={openRunDialog}
+            disabled={isNew}
+            style={{
+              padding: '8px 16px', fontSize: 13, border: '1px solid #4caf50', borderRadius: 6,
+              cursor: isNew ? 'not-allowed' : 'pointer', background: '#16301d', color: '#81c784', opacity: isNew ? 0.5 : 1,
+            }}
+          >
+            运行
+          </button>
+          <button
             onClick={async () => {
               if (!id || isNew) return
               try {
@@ -197,16 +243,18 @@ function AgentEditor() {
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
-                a.href = url; a.download = `${name}.json`
-                a.click(); URL.revokeObjectURL(url)
-              } catch { alert('导出失败') }
+                a.href = url
+                a.download = `${name}.json`
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch {
+                alert('导出失败')
+              }
             }}
             disabled={isNew || !id}
             style={{
               padding: '8px 14px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 6,
-              cursor: (isNew || !id) ? 'not-allowed' : 'pointer',
-              background: '#1e2a4a', color: '#b0bec5',
-              opacity: (isNew || !id) ? 0.5 : 1,
+              cursor: (isNew || !id) ? 'not-allowed' : 'pointer', background: '#1e2a4a', color: '#b0bec5', opacity: (isNew || !id) ? 0.5 : 1,
             }}
           >
             导出
@@ -216,9 +264,7 @@ function AgentEditor() {
             disabled={saving}
             style={{
               padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              background: '#1565c0', color: '#fff',
-              opacity: saving ? 0.6 : 1,
+              cursor: saving ? 'not-allowed' : 'pointer', background: '#1565c0', color: '#fff', opacity: saving ? 0.6 : 1,
             }}
           >
             保存
@@ -226,47 +272,7 @@ function AgentEditor() {
         </div>
       </div>
 
-      <div style={{
-        marginBottom: 16, padding: '10px 14px',
-        background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 8,
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <input
-          value={runText}
-          onChange={e => setRunText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !running && runText.trim()) doRun() }}
-          placeholder="输入 message，按 Enter 运行..."
-          style={{ flex: 1, padding: '8px 14px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, background: '#0f1a30', color: '#e0e0e0' }}
-          disabled={isNew}
-        />
-        <button
-          onClick={doRun}
-          disabled={running || isNew}
-          style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 6, cursor: running ? 'not-allowed' : 'pointer', background: '#1b3a1e', color: '#81c784', opacity: running ? 0.5 : 1, whiteSpace: 'nowrap' }}
-        >
-          {running ? '⏳' : '运行'}
-        </button>
-      </div>
-
-      {runResult && (
-        <div style={{
-          marginBottom: 16, padding: '10px 14px',
-          background: '#0f1a30', border: '1px solid #2a3a5c', borderRadius: 8,
-          display: 'flex', gap: 10, alignItems: 'flex-start',
-        }}>
-          <span style={{ color: runResult.status === 'success' ? '#81c784' : '#ef9a9a', fontSize: 14, marginTop: 1 }}>
-            {runResult.status === 'success' ? '✓' : '✗'}
-          </span>
-          <pre style={{ flex: 1, margin: 0, fontSize: 12, color: '#b0bec5', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflow: 'auto' }}>
-            {runResult.text}
-          </pre>
-          <button onClick={() => setRunResult(null)} style={{ padding: '2px 8px', fontSize: 11, border: '1px solid #2a3a5c', borderRadius: 4, cursor: 'pointer', background: 'transparent', color: '#6a7a8a' }}>
-            ✕
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         <div>
           <AgentForm
             name={name}
@@ -281,8 +287,7 @@ function AgentEditor() {
 
           <div style={{
             marginTop: 12, padding: '8px 10px', borderRadius: 8,
-            background: '#1e2a4a', border: '1px solid #2a3a5c',
-            fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
+            background: '#1e2a4a', border: '1px solid #2a3a5c', fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
           }}>
             💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 拖拽 Handle <strong style={{ color: '#b0bec5' }}>连线</strong><br />
             🔄 循环内子节点：拖入节点 → 双击 → 「从属于」下拉选 Loop 节点<br />
@@ -295,11 +300,120 @@ function AgentEditor() {
           nodes={nodes}
           edges={edges}
           executionSteps={executionSteps}
+          selectedNodeId={selectedNodeIdx === null ? null : (nodes[selectedNodeIdx]?.id || null)}
           onNodesChange={setNodes}
           onEdgesChange={setEdges}
           onDoubleClickNode={(idx) => setSelectedNodeIdx(idx)}
         />
       </div>
+
+      {runDialogOpen && (
+        <>
+          <div
+            onClick={closeRunDialog}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(3, 8, 17, 0.62)', backdropFilter: 'blur(3px)', zIndex: 120,
+            }}
+          />
+          <div style={{
+            position: 'fixed', right: 24, top: 24, width: 420, height: 'calc(100vh - 48px)',
+            background: '#101a2b', border: '1px solid #2a3a5c', borderRadius: 14, boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
+            zIndex: 130, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr) auto', overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px',
+              borderBottom: '1px solid #223452', background: '#142238',
+            }}>
+              <div>
+                <div style={{ color: '#e0e0e0', fontSize: 14, fontWeight: 700 }}>运行调试</div>
+                <div style={{ color: '#7d8ea8', fontSize: 12, marginTop: 4 }}>
+                  {currentExecutionStep ? `当前节点: ${currentExecutionStep.label || currentExecutionStep.node_id}` : '等待输入后运行'}
+                </div>
+              </div>
+              <button
+                onClick={closeRunDialog}
+                disabled={running}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid #2a3a5c', background: 'transparent', color: '#b0bec5',
+                  cursor: running ? 'not-allowed' : 'pointer', fontSize: 16,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: 14, overflow: 'auto', display: 'grid', gap: 10, alignContent: 'start' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
+                background: '#0f1a30', border: '1px solid #223452',
+              }}>
+                <span style={{ color: running ? '#90caf9' : runResult?.status === 'success' ? '#81c784' : runResult?.status === 'failed' ? '#ef9a9a' : '#6a7a8a', fontSize: 14 }}>
+                  {running ? '⏳' : runResult?.status === 'success' ? '✓' : runResult?.status === 'failed' ? '✗' : '○'}
+                </span>
+                <span style={{ color: '#d7e3ec', fontSize: 13, fontWeight: 600 }}>
+                  {running ? '正在执行' : runResult ? '执行完成' : '尚未开始'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gap: 8 }}>
+                {executionSteps && executionSteps.length > 0 ? executionSteps.map((step, idx) => (
+                  <div key={`${step.node_id}-${idx}`} style={{
+                    display: 'grid', gridTemplateColumns: '64px 84px 1fr', gap: 8, alignItems: 'center',
+                    padding: '9px 10px', borderRadius: 8,
+                    background: step.status === 'running' ? '#14263d' : '#111b2d',
+                    border: `1px solid ${step.status === 'running' ? '#1565c0' : '#243656'}`,
+                  }}>
+                    <span style={{ fontSize: 12, color: step.status === 'success' ? '#81c784' : step.status === 'failed' ? '#ef9a9a' : '#90caf9' }}>{step.status}</span>
+                    <span style={{ fontSize: 12, color: '#6a7a8a' }}>{step.type || '-'}</span>
+                    <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.node_id}</span>
+                  </div>
+                )) : (
+                  <div style={{ padding: '12px 10px', borderRadius: 8, background: '#0f1a30', border: '1px dashed #223452', fontSize: 12, color: '#6a7a8a' }}>
+                    运行后，这里会按顺序显示执行流程。
+                  </div>
+                )}
+              </div>
+
+              <div style={{ padding: '12px 10px', borderRadius: 8, background: '#0f1a30', border: '1px solid #223452' }}>
+                <div style={{ color: '#b0bec5', fontSize: 12, marginBottom: 8 }}>结果输出</div>
+                <pre style={{ margin: 0, fontSize: 12, color: '#b0bec5', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflow: 'auto' }}>
+                  {runResult?.text || '暂无输出'}
+                </pre>
+              </div>
+            </div>
+
+            <div style={{ padding: 14, borderTop: '1px solid #223452', background: '#142238', display: 'grid', gap: 10 }}>
+              <textarea
+                value={runText}
+                onChange={(e) => setRunText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !running && runText.trim()) {
+                    e.preventDefault()
+                    doRun()
+                  }
+                }}
+                placeholder="输入消息，Ctrl+Enter 运行"
+                style={{
+                  minHeight: 90, padding: '10px 12px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 10,
+                  background: '#0f1a30', color: '#e0e0e0', resize: 'vertical',
+                }}
+                disabled={isNew}
+              />
+              <button
+                onClick={doRun}
+                disabled={running || isNew || !runText.trim()}
+                style={{
+                  padding: '10px 14px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 10,
+                  cursor: running || isNew || !runText.trim() ? 'not-allowed' : 'pointer',
+                  background: '#1b3a1e', color: '#81c784', opacity: running || isNew || !runText.trim() ? 0.5 : 1,
+                }}
+              >
+                {running ? '运行中...' : '运行'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <ConfigPanel
         node={selectedNodeIdx === null ? null : nodes[selectedNodeIdx]}

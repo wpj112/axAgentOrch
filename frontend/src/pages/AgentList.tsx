@@ -116,6 +116,7 @@ function AgentList() {
                 <th style={thStyle}>描述</th>
                 <th style={{ ...thStyle, textAlign: 'center', width: 60 }}>节点</th>
                 <th style={thStyle}>创建时间</th>
+                <th style={thStyle}>编辑时间</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 120 }}>操作</th>
               </tr>
             </thead>
@@ -145,6 +146,9 @@ function AgentList() {
                   <td style={{ ...tdStyle, textAlign: 'center' }}>{agent.nodes.length}</td>
                   <td style={{ ...tdStyle, color: '#6a7a8a', fontSize: 12 }}>
                     {new Date(agent.created_at).toLocaleDateString('zh-CN')}
+                  </td>
+                  <td style={{ ...tdStyle, color: '#6a7a8a', fontSize: 12 }}>
+                    {new Date(agent.updated_at).toLocaleString('zh-CN', { hour12: false })}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     <a href={`/agents/${agent.id}`} style={{ ...actionBtn, background: '#1565c0', marginRight: 6 }}>编辑</a>

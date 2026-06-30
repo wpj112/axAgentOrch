@@ -11,6 +11,40 @@ from app.models import Agent, Execution, GlobalSetting
 from app.engine.builder import build_graph
 
 
+def _extract_result_text(state: dict) -> str:
+    messages = state.get('messages', []) or []
+    for message in reversed(messages):
+        content = getattr(message, 'content', None)
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if content not in (None, '', []):
+            return str(content)
+
+    node_outputs = state.get('node_outputs', {}) or {}
+    for value in reversed(list(node_outputs.values())):
+        if isinstance(value, dict):
+            text_value = value.get('text')
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value.strip()
+            result_value = value.get('result')
+            if isinstance(result_value, str) and result_value.strip():
+                return result_value.strip()
+            if result_value not in (None, '', [], {}):
+                return json.dumps(result_value, ensure_ascii=False)
+            if value == {'status': 'ok'}:
+                continue
+            if set(value.keys()) == {'iterations'}:
+                continue
+            if value:
+                return json.dumps(value, ensure_ascii=False)
+        elif isinstance(value, str) and value.strip():
+            return value.strip()
+        elif value not in (None, '', [], {}):
+            return json.dumps(value, ensure_ascii=False)
+
+    return ''
+
+
 async def _get_db_settings(db: AsyncSession) -> dict[str, str]:
     result = await db.execute(select(GlobalSetting))
     return {r.key: r.value for r in result.scalars().all()}
@@ -44,9 +78,7 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
         graph = build_graph(agent.nodes, agent.edges, model=model, api_key=api_key, base_url=base_url, temperature=temp)
         result = graph.invoke({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}})
 
-        final_messages = result.get("messages", [])
-        last_message = final_messages[-1] if final_messages else None
-        output_content = last_message.content if last_message and hasattr(last_message, "content") else str(result)
+        output_content = _extract_result_text(result)
         execution_steps = result.get("execution_steps", [])
 
         execution.status = "success"
@@ -84,11 +116,9 @@ async def run_agent_stream(
         async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}}):
             for node_id, state in event.items():
                 steps = state.get("execution_steps", [])
-                # Capture final LLM output
-                msgs = state.get("messages", [])
-                if msgs:
-                    last_msg = msgs[-1]
-                    final_result = getattr(last_msg, "content", str(last_msg)) if hasattr(last_msg, "content") else str(last_msg)
+                candidate_result = _extract_result_text(state)
+                if candidate_result:
+                    final_result = candidate_result
                 if steps != last_steps:
                     new_steps = [s for s in steps if s not in last_steps]
                     last_steps = steps

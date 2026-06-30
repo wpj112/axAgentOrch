@@ -202,3 +202,61 @@ def test_condition_evaluator():
         [{'variable_selector': ['x'], 'operator': 'lt', 'value': 3}],
         {'x': 5}
     )
+
+
+def test_extract_result_text_prefers_node_outputs_when_messages_empty():
+    from app.engine.executor import _extract_result_text
+
+    state = {
+        'messages': [],
+        'node_outputs': {
+            'start': {'status': 'ok'},
+            'http': {'models': [{'name': 'gpt-oss:20b'}]},
+            'loop': {'iterations': 3},
+        },
+    }
+
+    result = _extract_result_text(state)
+    assert 'gpt-oss:20b' in result
+
+
+def test_extract_result_text_uses_non_empty_result_field():
+    from app.engine.executor import _extract_result_text
+
+    state = {
+        'messages': [],
+        'node_outputs': {
+            'code': {'result': 'summary output'},
+            'end': {'status': 'ok'},
+        },
+    }
+
+    assert _extract_result_text(state) == 'summary output'
+
+
+def test_code_node_python_ctx_handles_json_nulls():
+    start = make_node('start', 'Start')
+    code = make_node('code', 'Code', {
+        'language': 'python',
+        'source_code': "import json\nprint(json.dumps(_ctx))",
+    })
+
+    graph = build_graph(
+        [start, code],
+        [make_edge(start, code)],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {'fake_http': {'models': [{'name': 'demo', 'details': None}]}}
+    })
+
+    code_output = result['node_outputs'][str(code.id)]['result']
+    assert '"details": null' in code_output

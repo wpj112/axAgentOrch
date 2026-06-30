@@ -292,7 +292,9 @@ def build_graph(
                         with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
                             ctx = state.get("tool_results", {})
                             if lang == "python":
-                                f.write(f"import json\n_ctx = {json.dumps(ctx)}\n")
+                                payload = json.dumps(ctx, ensure_ascii=False)
+                                f.write("import json\n")
+                                f.write(f"_ctx = json.loads({payload!r})\n")
                             f.write(source)
                             tmp = f.name
                         if lang == "python":
@@ -466,7 +468,9 @@ def build_graph(
                                         with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
                                             tx_ctx = state.get("tool_results", {})
                                             if lang == "python":
-                                                f.write(f"import json\n_ctx = {json.dumps(tx_ctx)}\n")
+                                                payload = json.dumps(tx_ctx, ensure_ascii=False)
+                                                f.write("import json\n")
+                                                f.write(f"_ctx = json.loads({payload!r})\n")
                                             f.write(source)
                                             tmp = f.name
                                         if lang == "python":

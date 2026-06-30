@@ -13,6 +13,10 @@ interface AgentCardProps {
   onDelete: (id: string) => void
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
 function AgentCard({ agent, onDelete }: AgentCardProps) {
   const [copied, setCopied] = useState(false)
 
@@ -67,6 +71,10 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
         >
           {copied ? '已复制' : '复制'}
         </button>
+      </div>
+      <div style={{ marginTop: 12, fontSize: 12, color: '#6a7a8a', display: 'grid', gap: 4 }}>
+        <div>创建：{new Date(agent.created_at).toLocaleDateString('zh-CN')}</div>
+        <div>编辑：{formatDateTime(agent.updated_at)}</div>
       </div>
     </div>
   )

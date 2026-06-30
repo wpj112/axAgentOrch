@@ -144,7 +144,10 @@ class AgentService:
 
             for edge in agent.edges:
                 await self.db.delete(edge)
-            for node in agent.nodes:
+
+            # Delete child nodes before loop/container parents to avoid FK violations
+            existing_nodes = sorted(agent.nodes, key=lambda node: (node.parent_id is None, str(node.id)))
+            for node in existing_nodes:
                 await self.db.delete(node)
             await self.db.flush()
 

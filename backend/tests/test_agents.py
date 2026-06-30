@@ -155,6 +155,47 @@ async def test_update_agent_without_edges(client):
 
 
 @pytest.mark.asyncio
+async def test_update_loop_agent_preserves_parent_nodes(client):
+    create_payload = {
+        "name": "Loop Save Agent",
+        "nodes": [
+            {"type": "start", "label": "Start", "config": {}},
+            {"type": "loop", "label": "Loop", "config": {"max_iterations": 3}},
+            {"type": "end", "label": "End", "config": {}},
+            {"type": "llm", "label": "Inside", "config": {"system_prompt": "hello"}, "parent_id": 1},
+        ],
+        "edges": [
+            {"source_node_id": 0, "target_node_id": 1},
+            {"source_node_id": 1, "target_node_id": 2, "source_handle": "loop_exit"},
+        ],
+    }
+    created = await client.post("/api/agents", json=create_payload)
+    assert created.status_code == 201, created.text
+    agent_id = created.json()["id"]
+
+    update_payload = {
+        "name": "Loop Save Agent",
+        "nodes": [
+            {"type": "start", "label": "Start", "config": {}},
+            {"type": "loop", "label": "Loop", "config": {"max_iterations": 5, "start_node_id": "3", "end_node_id": "3", "condition": {"operator": "lt", "variable_selector": ["3", "result"], "value": 2}}},
+            {"type": "end", "label": "End", "config": {}},
+            {"type": "llm", "label": "Inside", "config": {"system_prompt": "hello again"}, "parent_id": 1},
+        ],
+        "edges": [
+            {"source_node_id": 0, "target_node_id": 1},
+            {"source_node_id": 1, "target_node_id": 2, "source_handle": "loop_exit"},
+        ],
+    }
+    resp = await client.put(f"/api/agents/{agent_id}", json=update_payload)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    loop_node = next(node for node in data["nodes"] if node["type"] == "loop")
+    llm_node = next(node for node in data["nodes"] if node["type"] == "llm")
+    assert loop_node["config"]["max_iterations"] == 5
+    assert llm_node["parent_id"] == loop_node["id"]
+
+
+@pytest.mark.asyncio
 async def test_delete_agent(client):
     agent_id = await test_create_agent(client)
     resp = await client.delete(f"/api/agents/{agent_id}")
