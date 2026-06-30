@@ -33,9 +33,25 @@ def build_graph(
     )
 
     node_map = {str(n.id): n for n in nodes}
-    outgoing: dict[str, list] = {str(n.id): [] for n in nodes}
+    children = {str(n.id): [] for n in nodes}
     for e in edges:
-        outgoing.setdefault(str(e.source_node_id), []).append(e)
+        children.setdefault(str(e.source_node_id), []).append(str(e.target_node_id))
+
+    in_degree = {k: 0 for k in node_map}
+    for e in edges:
+        in_degree[str(e.target_node_id)] = in_degree.get(str(e.target_node_id), 0) + 1
+    order = []
+    queue = [nid for nid, deg in in_degree.items() if deg == 0]
+    while queue:
+        nid = queue.pop(0)
+        order.append(nid)
+        for child in children.get(nid, []):
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                queue.append(child)
+
+    # Mark all nodes as pending
+    all_node_ids = {str(n.id) for n in nodes}
 
     graph = StateGraph(AgentState)
 
@@ -220,63 +236,10 @@ def build_graph(
 
             graph.add_node(nid, make_code_fn(nid, ntype, nlabel, nconfig))
 
-    # Route: entry → start node(s), and per-node conditional routing
-    start_nodes = [n for n in nodes if n.type == "start"]
-    if start_nodes:
-        graph.set_entry_point(str(start_nodes[0].id))
-
-    # Per-node routing
-    for n in nodes:
-        nid = str(n.id)
-        outs = outgoing.get(nid, [])
-        cond_outs = [e for e in outs if e.condition]
-        normal_outs = [e for e in outs if not e.condition]
-
-        if n.type == "end":
-            graph.add_edge(nid, END)
-        elif nid not in graph._nodes:  # node not registered (shouldn't happen)
-            pass
-        elif cond_outs:
-            # Has conditional edges — use conditional routing
-            def make_route_fn(_cond_outs=cond_outs, _normal_outs=normal_outs):
-                def route(state):
-                    # Check conditions against last node output
-                    result_for_match = ""
-                    msgs = state.get("messages", [])
-                    if msgs:
-                        result_for_match = str(getattr(msgs[-1], "content", ""))
-                    tools = state.get("tool_results", {})
-                    last_tool = list(tools.values())[-1] if tools else None
-                    if last_tool is not None:
-                        result_for_match += " " + str(last_tool)
-
-                    for e in _cond_outs:
-                        cond = e.condition or ""
-                        if cond == "else" or cond == "":
-                            continue
-                        # Match: condition string found in output
-                        if "==" in cond:
-                            k, v = cond.split("==", 1)
-                            k, v = k.strip(), v.strip().strip('"').strip("'")
-                            if isinstance(last_tool, dict) and str(last_tool.get(k, "")) == v:
-                                return str(e.target_node_id)
-                        if cond in result_for_match:
-                            return str(e.target_node_id)
-                    # Fallback to normal edge or "else" condition
-                    for e in _cond_outs:
-                        if e.condition == "else":
-                            return str(e.target_node_id)
-                    if _normal_outs:
-                        return str(_normal_outs[0].target_node_id)
-                    return END
-                return route
-            path_map = {str(e.target_node_id): str(e.target_node_id) for e in cond_outs + normal_outs}
-            path_map[END] = END
-            graph.add_conditional_edges(nid, make_route_fn(), path_map)
-        elif normal_outs:
-            for e in normal_outs:
-                graph.add_edge(nid, str(e.target_node_id))
-        else:
-            graph.add_edge(nid, END)
+    for i in range(len(order) - 1):
+        graph.add_edge(order[i], order[i + 1])
+    if order:
+        graph.set_entry_point(order[0])
+        graph.add_edge(order[-1], END)
 
     return graph.compile()
