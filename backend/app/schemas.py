@@ -11,7 +11,7 @@ class NodeCreate(BaseModel):
     type: str = Field(..., description="start | llm | http | db | code | end | if_else | loop")
     label: str
     config: dict = Field(default_factory=dict)
-    parent_id: uuid.UUID | None = None
+    parent_id: int | uuid.UUID | None = None
     position_x: float = 0
     position_y: float = 0
 
@@ -53,7 +53,7 @@ class AgentCreate(BaseModel):
     llm_model: str | None = None
     llm_temperature: str | None = None
     nodes: list[NodeCreate] = Field(default_factory=list, min_length=2)
-    edges: list[EdgeCreate] = Field(default_factory=list, min_length=1)
+    edges: list[EdgeCreate] = Field(default_factory=list)
 
 
 class AgentUpdate(BaseModel):

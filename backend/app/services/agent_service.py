@@ -14,6 +14,84 @@ class AgentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    def _resolve_node_ref(
+        self,
+        ref: int | uuid.UUID | None,
+        created_nodes: list[Node],
+        legacy_index_by_id: dict[str, int] | None = None,
+    ) -> uuid.UUID | None:
+        if ref is None:
+            return None
+
+        idx: int | None = None
+        if isinstance(ref, int):
+            idx = ref
+        else:
+            ref_str = str(ref)
+            if legacy_index_by_id and ref_str in legacy_index_by_id:
+                idx = legacy_index_by_id[ref_str]
+            else:
+                try:
+                    idx = int(ref_str)
+                except (TypeError, ValueError):
+                    idx = None
+
+        if idx is None or not (0 <= idx < len(created_nodes)):
+            return None
+        return created_nodes[idx].id
+
+    async def _create_nodes(
+        self,
+        agent_id: uuid.UUID,
+        nodes_data: list,
+        legacy_index_by_id: dict[str, int] | None = None,
+    ) -> list[Node]:
+        created_nodes: list[Node] = []
+        pending_parents: list[int | uuid.UUID | None] = []
+
+        for node_data in nodes_data:
+            node = Node(
+                agent_id=agent_id,
+                type=node_data.type,
+                label=node_data.label,
+                config=node_data.config,
+                parent_id=None,
+                position_x=node_data.position_x,
+                position_y=node_data.position_y,
+            )
+            self.db.add(node)
+            await self.db.flush()
+            created_nodes.append(node)
+            pending_parents.append(node_data.parent_id)
+
+        for node, parent_ref in zip(created_nodes, pending_parents):
+            node.parent_id = self._resolve_node_ref(parent_ref, created_nodes, legacy_index_by_id)
+
+        await self.db.flush()
+        return created_nodes
+
+    def _create_edges(
+        self,
+        agent_id: uuid.UUID,
+        edges_data: list,
+        created_nodes: list[Node],
+        legacy_index_by_id: dict[str, int] | None = None,
+    ) -> None:
+        for edge_data in edges_data:
+            source_node_id = self._resolve_node_ref(edge_data.source_node_id, created_nodes, legacy_index_by_id)
+            target_node_id = self._resolve_node_ref(edge_data.target_node_id, created_nodes, legacy_index_by_id)
+            if source_node_id is None or target_node_id is None:
+                continue
+
+            edge = Edge(
+                agent_id=agent_id,
+                source_node_id=source_node_id,
+                target_node_id=target_node_id,
+                source_handle=edge_data.source_handle,
+                condition=edge_data.condition,
+            )
+            self.db.add(edge)
+
     async def create_agent(self, data: AgentCreate) -> Agent:
         agent = Agent(
             name=data.name,
@@ -24,32 +102,8 @@ class AgentService:
         self.db.add(agent)
         await self.db.flush()
 
-        created_nodes: list[Node] = []
-        for node_data in data.nodes:
-            node = Node(
-                agent_id=agent.id,
-                type=node_data.type,
-                label=node_data.label,
-                config=node_data.config,
-                parent_id=node_data.parent_id,
-                position_x=node_data.position_x,
-                position_y=node_data.position_y,
-            )
-            self.db.add(node)
-            await self.db.flush()
-            created_nodes.append(node)
-
-        for edge_data in data.edges:
-            src_idx = int(edge_data.source_node_id) if not isinstance(edge_data.source_node_id, int) else edge_data.source_node_id
-            tgt_idx = int(edge_data.target_node_id) if not isinstance(edge_data.target_node_id, int) else edge_data.target_node_id
-            if 0 <= src_idx < len(created_nodes) and 0 <= tgt_idx < len(created_nodes):
-                edge = Edge(
-                    agent_id=agent.id,
-                    source_node_id=created_nodes[src_idx].id,
-                    target_node_id=created_nodes[tgt_idx].id,
-                    condition=edge_data.condition,
-                )
-                self.db.add(edge)
+        created_nodes = await self._create_nodes(agent.id, data.nodes)
+        self._create_edges(agent.id, data.edges, created_nodes)
 
         await self.db.commit()
         return await self.get_agent(agent.id)
@@ -86,39 +140,18 @@ class AgentService:
             agent.llm_temperature = data.llm_temperature
 
         if data.nodes is not None:
-            # Remove old nodes and edges
+            legacy_index_by_id = {str(node.id): idx for idx, node in enumerate(agent.nodes)}
+
             for edge in agent.edges:
                 await self.db.delete(edge)
             for node in agent.nodes:
                 await self.db.delete(node)
             await self.db.flush()
 
-            created_nodes: list[Node] = []
-            for node_data in data.nodes:
-                node = Node(
-                    agent_id=agent.id,
-                    type=node_data.type,
-                    label=node_data.label,
-                    config=node_data.config,
-                    position_x=node_data.position_x,
-                    position_y=node_data.position_y,
-                )
-                self.db.add(node)
-                await self.db.flush()
-                created_nodes.append(node)
+            created_nodes = await self._create_nodes(agent.id, data.nodes, legacy_index_by_id)
 
             if data.edges is not None:
-                for edge_data in data.edges:
-                    src_idx = int(edge_data.source_node_id) if not isinstance(edge_data.source_node_id, int) else edge_data.source_node_id
-                    tgt_idx = int(edge_data.target_node_id) if not isinstance(edge_data.target_node_id, int) else edge_data.target_node_id
-                    if 0 <= src_idx < len(created_nodes) and 0 <= tgt_idx < len(created_nodes):
-                        edge = Edge(
-                            agent_id=agent.id,
-                            source_node_id=created_nodes[src_idx].id,
-                            target_node_id=created_nodes[tgt_idx].id,
-                            condition=edge_data.condition,
-                        )
-                        self.db.add(edge)
+                self._create_edges(agent.id, data.edges, created_nodes, legacy_index_by_id)
 
         agent.updated_at = datetime.now(timezone.utc)
         await self.db.commit()

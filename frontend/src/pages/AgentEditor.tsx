@@ -1,6 +1,7 @@
+import axios from 'axios'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchAgent, createAgent, updateAgent, type AgentNode, type AgentEdge } from '../api/client'
+import { fetchAgent, createAgent, updateAgent, type AgentNode } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
@@ -8,6 +9,7 @@ import ConfigPanel from '../components/ConfigPanel'
 interface EdgeDef {
   sourceIdx: number
   targetIdx: number
+  sourceHandle?: string | null
   condition?: string | null
 }
 
@@ -43,6 +45,7 @@ function AgentEditor() {
           label: n.label,
           config: n.config as Record<string, unknown>,
           id: n.id,
+          parent_id: n.parent_id || null,
           position_x: n.position_x,
           position_y: n.position_y,
         }))
@@ -50,7 +53,7 @@ function AgentEditor() {
         const edgeList: EdgeDef[] = agent.edges.map((e) => {
           const srcIdx = nodeList.findIndex((n) => n.id === e.source_node_id)
           const tgtIdx = nodeList.findIndex((n) => n.id === e.target_node_id)
-          return { sourceIdx: srcIdx, targetIdx: tgtIdx }
+          return { sourceIdx: srcIdx, targetIdx: tgtIdx, sourceHandle: e.source_handle || null, condition: e.condition || null }
         }).filter((e) => e.sourceIdx >= 0 && e.targetIdx >= 0)
         setEdges(edgeList)
         setLoading(false)
@@ -58,19 +61,33 @@ function AgentEditor() {
     }
   }, [id, isNew])
 
+  const buildNodePayload = (curNodes: AgentNode[]) => {
+    const nodeIndexById = new Map(curNodes.map((node, idx) => [node.id || String(idx), idx]))
+    return curNodes.map((n) => ({
+      type: n.type,
+      label: n.label,
+      config: n.config,
+      parent_id: n.parent_id ? (nodeIndexById.get(n.parent_id) ?? null) : null,
+      position_x: n.position_x ?? 0,
+      position_y: n.position_y ?? 0,
+    }))
+  }
+
+  const buildEdgePayload = (curEdges: EdgeDef[]) => curEdges.map((e) => ({
+    source_node_id: e.sourceIdx,
+    target_node_id: e.targetIdx,
+    source_handle: e.sourceHandle || null,
+    condition: e.condition || null,
+  }))
+
   const doSave = async (agentName: string, desc: string, curNodes: AgentNode[], curEdges: EdgeDef[], model: string, temp: string) => {
     if (!agentName.trim()) {
       alert('请输入智能体名称')
       return
     }
     setSaving(true)
-    const nodeList = curNodes.map((n) => ({
-      type: n.type,
-      label: n.label,
-      config: n.config,
-      position_x: n.position_x ?? 0,
-      position_y: n.position_y ?? 0,
-    }))
+    const nodeList = buildNodePayload(curNodes)
+    const edgeList = buildEdgePayload(curEdges)
 
     try {
       if (isNew) {
@@ -80,10 +97,7 @@ function AgentEditor() {
           llm_model: model.trim() || undefined,
           llm_temperature: temp.trim() || undefined,
           nodes: nodeList,
-          edges: curEdges.map((e) => ({
-            source_node_id: e.sourceIdx as unknown as string,
-            target_node_id: e.targetIdx as unknown as string,
-          })),
+          edges: edgeList,
         })
         navigate(`/agents/${agent.id}`, { replace: true })
       } else if (id) {
@@ -93,17 +107,21 @@ function AgentEditor() {
           llm_model: model.trim() || null,
           llm_temperature: temp.trim() || null,
           nodes: nodeList,
-          edges: curEdges.map((e) => ({
-            source_node_id: e.sourceIdx,
-            target_node_id: e.targetIdx,
-          })),
+          edges: edgeList,
         }
         await updateAgent(id, payload as never)
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
       }
     } catch (err) {
-      alert('保存失败: ' + String(err))
+      if (axios.isAxiosError(err)) {
+        const detail = typeof err.response?.data === 'string'
+          ? err.response.data
+          : JSON.stringify(err.response?.data ?? err.message, null, 2)
+        alert(`保存失败:\n${detail}`)
+      } else {
+        alert('保存失败: ' + String(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -259,7 +277,7 @@ function AgentEditor() {
       </div>
 
       <ConfigPanel
-        node={selectedNodeIdx !== null ? nodes[selectedNodeIdx] : null}
+        node={selectedNodeIdx === null ? null : nodes[selectedNodeIdx]}
         onSave={handleSaveNodeConfig}
         onClose={() => setSelectedNodeIdx(null)}
       />

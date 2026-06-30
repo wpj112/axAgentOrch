@@ -1,17 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { AgentNode } from '../api/client'
 
-const defaultIfElseCases = JSON.stringify({
-  cases: [
-    {
-      case_id: "case_1",
-      conditions: [
-        { variable_selector: ["node_id", "field"], operator: "is", value: "target_value" }
-      ]
-    }
-  ],
-  default_case_id: "default"
-}, null, 2)
+const defaultIfElseBranches = `weather = weather
+chat = chat`
 
 const defaultLoopCondition = JSON.stringify({
   variable_selector: ["node_id", "field"],
@@ -31,10 +22,66 @@ const inputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }
-
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
-
 const TYPE_OPTIONS = ['start', 'llm', 'http', 'db', 'code', 'if_else', 'loop', 'end']
+
+function selectorToPath(selector: unknown): string {
+  if (Array.isArray(selector)) return selector.map(String).join('.')
+  return typeof selector === 'string' ? selector : 'text'
+}
+
+function deriveIfElseFields(config: Record<string, string>): Record<string, string> {
+  const next = { ...config }
+  if (next.field_path && next.branches_text) return next
+
+  try {
+    const cases = JSON.parse(next.cases || next.cases_json || '[]')
+    if (Array.isArray(cases) && cases.length > 0) {
+      const firstCond = cases[0]?.conditions?.[0] || {}
+      next.field_path = selectorToPath(firstCond.variable_selector)
+      next.operator = firstCond.operator || 'is'
+      next.branches_text = cases.map((item: any) => {
+        const cond = item?.conditions?.[0] || {}
+        const value = cond.operator === 'not_empty' ? '' : String(cond.value ?? '')
+        return `${item.case_id} = ${value}`.trimEnd()
+      }).join('\n')
+    }
+  } catch {}
+
+  if (!next.field_path) next.field_path = 'text'
+  if (!next.operator) next.operator = 'is'
+  if (!next.branches_text) next.branches_text = defaultIfElseBranches
+  if (!next.default_case_id) next.default_case_id = 'default'
+  return next
+}
+
+function parseIfElseBranches(fieldPath: string, operator: string, branchesText: string) {
+  const selector = fieldPath.split('.').map((part) => part.trim()).filter(Boolean)
+  const branches = branchesText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [rawCaseId, ...rest] = line.split('=')
+      const caseId = rawCaseId.trim()
+      const rawValue = rest.join('=').trim()
+      const branch: Record<string, unknown> = { case_id: caseId }
+      if (operator !== 'not_empty') branch.value = rawValue
+      return branch
+    })
+    .filter((branch) => branch.case_id)
+
+  const cases = branches.map((branch) => ({
+    case_id: branch.case_id,
+    conditions: [{
+      variable_selector: selector,
+      operator,
+      ...(operator === 'not_empty' ? {} : { value: branch.value }),
+    }],
+  }))
+
+  return { branches, cases }
+}
 
 function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
   const [type, setType] = useState(initial?.type || 'llm')
@@ -51,18 +98,25 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
       for (const [k, v] of Object.entries(initial.config)) {
         flat[k] = typeof v === 'string' ? v : JSON.stringify(v)
       }
-      setConfig(flat)
+      setConfig(initial.type === 'if_else' ? deriveIfElseFields(flat) : flat)
+    } else {
+      setConfig({})
     }
   }, [initial])
 
   const handleSave = () => {
     const finalConfig: Record<string, unknown> = { ...config }
-    // Parse JSON fields for if_else and loop on save
     if (type === 'if_else') {
-      try { finalConfig.cases = JSON.parse((config.cases_json as string) || '{}') } catch { finalConfig.cases = [] }
+      const fieldPath = (config.field_path || 'text').trim()
+      const operator = config.operator || 'is'
+      const { branches, cases } = parseIfElseBranches(fieldPath, operator, config.branches_text || '')
+      finalConfig.field_path = fieldPath
+      finalConfig.operator = operator
+      finalConfig.branches = branches
+      finalConfig.cases = cases
       finalConfig.default_case_id = config.default_case_id || 'default'
+      delete finalConfig.branches_text
       delete finalConfig.cases_json
-      delete finalConfig.default_case_id
     }
     if (type === 'loop') {
       try { finalConfig.condition = JSON.parse((config.condition_json as string) || '{}') } catch { finalConfig.condition = {} }
@@ -74,7 +128,7 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
       delete finalConfig.start_node_id
       delete finalConfig.end_node_id
     }
-    onSave({ type: type as AgentNode['type'], label, config: finalConfig })
+    onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: initial?.parent_id || null })
   }
 
   const setConfigField = (key: string, value: string) => {
@@ -89,11 +143,7 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
 
       <div style={fieldStyle}>
         <label style={labelStyle}>类型</label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as AgentNode['type'])}
-          style={inputStyle}
-        >
+        <select value={type} onChange={(e) => setType(e.target.value as AgentNode['type'])} style={inputStyle}>
           {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
@@ -102,12 +152,7 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
 
       <div style={fieldStyle}>
         <label style={labelStyle}>标签</label>
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="节点显示名称"
-          style={inputStyle}
-        />
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="节点显示名称" style={inputStyle} />
       </div>
 
       {type === 'llm' && (
@@ -185,20 +230,39 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
       {type === 'if_else' && (
         <>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Cases (JSON)</label>
-            <textarea
-              value={config.cases_json || defaultIfElseCases}
-              onChange={(e) => setConfigField('cases_json', e.target.value)}
-              rows={8}
-              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-            />
+            <label style={labelStyle}>判断字段</label>
+            <input value={config.field_path || 'text'} onChange={(e) => setConfigField('field_path', e.target.value)} placeholder="text / result / data.intent" style={inputStyle} />
+            <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 6, lineHeight: 1.6 }}>
+              If-else 默认读取它正上游节点的输出。常见写法：LLM 用 `text`，Code 用 `result`，HTTP JSON 直接写字段名，如 `intent` 或 `data.intent`。
+            </div>
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Default Case ID</label>
+            <label style={labelStyle}>操作符</label>
+            <select value={config.operator || 'is'} onChange={(e) => setConfigField('operator', e.target.value)} style={inputStyle}>
+              <option value="is">等于</option>
+              <option value="not_empty">非空</option>
+              <option value="lt">小于</option>
+              <option value="gte">大于等于</option>
+            </select>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>分支列表</label>
+            <textarea
+              value={config.branches_text || defaultIfElseBranches}
+              onChange={(e) => setConfigField('branches_text', e.target.value)}
+              rows={6}
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+            />
+            <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
+              每行一个分支，格式：`分支名 = 比较值`。例如 `weather = weather`。
+            </div>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>默认分支名</label>
             <input value={config.default_case_id || 'default'} onChange={(e) => setConfigField('default_case_id', e.target.value)} style={inputStyle} />
           </div>
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
-            边通过 source_handle 匹配 case_id。例如 source_handle="order_search" 连到对应分支节点。
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4, lineHeight: 1.6 }}>
+            保存后，从条件节点连出去的边，双击边并填写分支名，例如 `weather` / `chat` / `default`。
           </div>
         </>
       )}
@@ -211,12 +275,7 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Condition (JSON)</label>
-            <textarea
-              value={config.condition_json || defaultLoopCondition}
-              onChange={(e) => setConfigField('condition_json', e.target.value)}
-              rows={5}
-              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-            />
+            <textarea value={config.condition_json || defaultLoopCondition} onChange={(e) => setConfigField('condition_json', e.target.value)} rows={5} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Start Node ID</label>
@@ -227,18 +286,14 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
             <input value={config.end_node_id || ''} onChange={(e) => setConfigField('end_node_id', e.target.value)} placeholder="循环体最后一个节点ID" style={inputStyle} />
           </div>
           <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
-            循环体内节点需设置 parent_id=此节点ID。出口边用 source_handle="loop_exit"。
+            循环体内节点需设置 parent_id=此节点ID。出口边可双击命名为 `loop_exit`。
           </div>
         </>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, cursor: 'pointer', background: '#0f1a30', color: '#e0e0e0' }}>
-          取消
-        </button>
-        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: '#1565c0', color: '#fff' }}>
-          确认
-        </button>
+        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, cursor: 'pointer', background: '#0f1a30', color: '#e0e0e0' }}>取消</button>
+        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: '#1565c0', color: '#fff' }}>确认</button>
       </div>
     </div>
   )

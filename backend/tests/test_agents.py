@@ -80,6 +80,24 @@ async def test_create_agent(client):
 
 
 @pytest.mark.asyncio
+async def test_create_agent_without_edges(client):
+    payload = {
+        "name": "Draft Agent",
+        "description": "No edges yet",
+        "nodes": [
+            {"type": "start", "label": "Start", "config": {}},
+            {"type": "llm", "label": "Judge", "config": {}},
+        ],
+        "edges": [],
+    }
+    resp = await client.post("/api/agents", json=payload)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Draft Agent"
+    assert len(data["edges"]) == 0
+
+
+@pytest.mark.asyncio
 async def test_list_agents(client):
     resp = await client.get("/api/agents")
     assert resp.status_code == 200
@@ -115,6 +133,25 @@ async def test_update_agent(client):
     resp = await client.put(f"/api/agents/{agent_id}", json=payload)
     assert resp.status_code == 200
     assert resp.json()["name"] == "Updated Agent"
+
+
+@pytest.mark.asyncio
+async def test_update_agent_without_edges(client):
+    agent_id = await test_create_agent(client)
+    payload = {
+        "name": "Draft Agent Updated",
+        "description": "Disconnected draft",
+        "nodes": [
+            {"type": "start", "label": "Start", "config": {}},
+            {"type": "llm", "label": "Judge", "config": {}},
+        ],
+        "edges": [],
+    }
+    resp = await client.put(f"/api/agents/{agent_id}", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Draft Agent Updated"
+    assert len(data["edges"]) == 0
 
 
 @pytest.mark.asyncio

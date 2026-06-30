@@ -16,6 +16,7 @@ const nodeTypes = { custom: CanvasNode }
 interface EdgeDef {
   sourceIdx: number
   targetIdx: number
+  sourceHandle?: string | null
   condition?: string | null
 }
 
@@ -40,12 +41,13 @@ function toRFNode(n: AgentNode, idx: number, steps?: { node_id: string; status: 
 
 function toRFEdge(e: EdgeDef, nodes: AgentNode[]): Edge {
   return {
-    id: `${e.sourceIdx}-${e.targetIdx}`,
+    id: `${e.sourceIdx}-${e.targetIdx}-${e.sourceHandle || 'default'}`,
     source: nodes[e.sourceIdx]?.id || String(e.sourceIdx),
     target: nodes[e.targetIdx]?.id || String(e.targetIdx),
+    sourceHandle: e.sourceHandle || undefined,
     label: e.condition || undefined,
     style: e.condition ? { strokeDasharray: '5 5' } : {},
-    data: { condition: e.condition || null },
+    data: { condition: e.condition || null, sourceHandle: e.sourceHandle || null },
   }
 }
 
@@ -78,7 +80,7 @@ function FlowCanvasInner({
   const nodesPropRef = useRef(nodes)
   useEffect(() => { rfNodesRef.current = rfNodes; rfEdgesRef.current = rfEdges; nodesPropRef.current = nodes }, [rfNodes, rfEdges, nodes])
 
-    const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
+  const syncToParent = useCallback((nextRfNodes: Node[], nextRfEdges: Edge[]) => {
     const idxMap = new Map(nextRfNodes.map((n, i) => [n.id, i]))
     const agentNodes: AgentNode[] = nextRfNodes.map(n => {
       const parent = nodesPropRef.current.find(pn => (pn.id || '') === n.id)
@@ -87,6 +89,7 @@ function FlowCanvasInner({
         type: (n.data?.type as AgentNode['type']) || 'start',
         label: n.data?.label || '',
         config: parent?.config || n.data?.config || {},
+        parent_id: parent?.parent_id || null,
         position_x: n.position.x,
         position_y: n.position.y,
       }
@@ -94,6 +97,7 @@ function FlowCanvasInner({
     const agentEdges: EdgeDef[] = nextRfEdges.map(e => ({
       sourceIdx: idxMap.get(e.source) ?? 0,
       targetIdx: idxMap.get(e.target) ?? 0,
+      sourceHandle: e.sourceHandle || e.data?.sourceHandle || null,
       condition: e.data?.condition || null,
     }))
     syncLockRef.current = true
@@ -101,21 +105,21 @@ function FlowCanvasInner({
     onEdgesChange(agentEdges)
   }, [onNodesChange, onEdgesChange])
 
-  // Initialize from props once
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true
       setRfNodes(nodes.map((n, i) => toRFNode(n, i, executionSteps)))
       setRfEdges(edges.map(e => toRFEdge(e, nodes)))
     }
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Sync from parent only when the node ID order changes (new agent loaded)
   const nodeIdKey = nodes.map(n => n.id).join(',')
-  const prevIdKeyRef = useRef(nodeIdKey)
+  const edgeKey = edges.map(e => `${e.sourceIdx}-${e.targetIdx}-${e.sourceHandle || ''}-${e.condition || ''}`).join('|')
+  const prevSyncKeyRef = useRef(`${nodeIdKey}::${edgeKey}`)
   useEffect(() => {
-    if (prevIdKeyRef.current !== nodeIdKey) {
-      prevIdKeyRef.current = nodeIdKey
+    const nextKey = `${nodeIdKey}::${edgeKey}`
+    if (prevSyncKeyRef.current !== nextKey) {
+      prevSyncKeyRef.current = nextKey
       if (syncLockRef.current) {
         syncLockRef.current = false
         return
@@ -125,9 +129,8 @@ function FlowCanvasInner({
         setRfEdges(edges.map(e => toRFEdge(e, nodes)))
       }
     }
-  })  // intentionally runs every render
+  })
 
-  // Update node statuses when executionSteps change
   useEffect(() => {
     if (!executionSteps?.length) return
     setRfNodes(nds => nds.map(n => {
@@ -137,9 +140,17 @@ function FlowCanvasInner({
   }, [executionSteps, setRfNodes])
 
   const onConnect = useCallback((params: Connection) => {
+    const { source, target, sourceHandle, targetHandle } = params
+    if (!source || !target) return
     setRfEdges(eds => {
       const next = addEdge({
-        ...params, style: {}, data: { condition: null },
+        id: `${source}-${sourceHandle || 'default'}-${target}-${targetHandle || 'default'}`,
+        source,
+        target,
+        sourceHandle: sourceHandle || undefined,
+        targetHandle: targetHandle || undefined,
+        style: {},
+        data: { condition: null, sourceHandle: sourceHandle || null },
       }, eds)
       syncToParent(rfNodesRef.current, next)
       return next
@@ -178,6 +189,25 @@ function FlowCanvasInner({
     if (idx >= 0) onDoubleClickNode(idx)
   }, [onDoubleClickNode])
 
+  const onEdgeDoubleClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    const current = edge.data?.condition || ''
+    const nextValue = prompt('请输入边名称 / 分支名，例如 weather、chat、default、loop_exit', current)
+    if (nextValue === null) return
+    const trimmed = nextValue.trim()
+    setRfEdges((eds) => {
+      const next = eds.map((item) => item.id === edge.id
+        ? {
+            ...item,
+            label: trimmed || undefined,
+            style: trimmed ? { strokeDasharray: '5 5' } : {},
+            data: { ...item.data, condition: trimmed || null },
+          }
+        : item)
+      syncToParent(rfNodesRef.current, next)
+      return next
+    })
+  }, [setRfEdges, syncToParent])
+
   const handleNodesChange: OnNodesChange = useCallback(changes => {
     onRfNodesChange(changes)
     setRfNodes(nds => {
@@ -211,6 +241,7 @@ function FlowCanvasInner({
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeDoubleClick={onNodeDoubleClick}
+        onEdgeDoubleClick={onEdgeDoubleClick}
         nodeTypes={nodeTypes}
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
@@ -221,6 +252,7 @@ function FlowCanvasInner({
           const colorMap: Record<string, string> = {
             start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
             db: '#ff9800', code: '#795548', end: '#f44336',
+            if_else: '#e91e63', loop: '#00bcd4',
           }
           return colorMap[n.data?.type] || '#999'
         }} style={{ background: '#1e2a4a' }} />

@@ -9,9 +9,8 @@ LLM 智能体可视化编排平台。通过拖拽画布定义 Agent 工作流，
 | 🎨 拖拽画布 | React Flow 可视化编排，拖拽节点 → 连线 → 配置 |
 | 🧠 LLM 执行 | LangGraph ReAct Agent，LLM 自主决策何时调用工具 |
 | 🔧 工具节点 | HTTP 请求、数据库查询（SELECT）、代码执行（Python/JS） |
-| 🔗 条件路由 | 边支持条件表达式，LLM 输出匹配时走相应分支 |
-| 🔀 条件分支 | IfElseNode，结构化条件 + handle 路由，支持 is/not_empty/lt/gte |
-| 🔁 循环控制 | LoopNode，容器节点循环执行子流程，max_iterations 保护 |
+| 🔀 条件分支 | IfElseNode，按 `node_outputs` 做结构化判断，支持 is/not_empty/lt/gte |
+| 🔁 循环控制 | LoopNode，循环执行子流程，按结构化条件决定继续/退出 |
 | 🌐 同步/异步 | `?mode=sync` 阻塞返回 / `?mode=async` 立即返回 task_id 轮询 |
 | ⚙️ 全局配置 | Model / API Key / Base URL / Temperature，支持 OpenAI + Ollama + DeepSeek |
 | 🏷️ Agent 覆盖 | 每个 Agent 可覆盖全局的 Model 和 Temperature |
@@ -146,24 +145,71 @@ Agent 由节点（Node）和连线（Edge）组成。执行时采用 **ReAct 模
 
 ### 条件分支 (IfElseNode)
 
-控制节点，根据前一个节点的输出决定走哪条分支。
+控制节点，按前面节点写入的 `node_outputs` 做结构化判断。
 
-**1. 拖入「条件」节点** → 双击编辑 Cases 配置：
+当前执行器里，每个节点执行后都会把结果写到 `node_outputs[节点ID]`：
+- `llm` 节点会写入 `{"text": "..."}`
+- `http` 节点会写入接口返回的 JSON，或 `{"result": "..."}`
+- `db` 节点会写入查询结果
+- `code` 节点会写入 `{"result": "..."}`
+
+所以 IfElseNode 不是直接判断 `input.message`，而是判断“前面节点产出的结构化结果”。最常见用法是：
+
+1. 先让一个 `llm` / `code` / `http` 节点产出可判断的字段
+2. 再接一个 `if_else` 节点
+3. 在 `cases` 里用 `variable_selector` 指向那个字段
+4. 从条件节点连出多条边，给每条边起一个分支名
+
+示例：先让 LLM 输出一个意图标签，再由条件节点分流。
+
+上游 LLM 的 `system_prompt` 可以约束成：
+```text
+判断用户意图，只输出 JSON。
+订单查询输出 {"intent":"order_search"}
+普通闲聊输出 {"intent":"chat"}
+```
+
+IfElseNode 配置：
 ```json
 {
   "cases": [
-    {"case_id": "order", "conditions": [
-      {"variable_selector": ["intent_node_id", "intent"], "operator": "is", "value": "order_search"}
-    ]}
+    {
+      "case_id": "order",
+      "conditions": [
+        {"variable_selector": ["<llm节点ID>", "text"], "operator": "not_empty"}
+      ]
+    }
   ],
   "default_case_id": "default"
 }
 ```
 
-**2. 连边时设 source_handle 匹配 case_id：**
+如果你希望判断结构化字段，推荐让上游 `code` / `http` 节点写出明确 JSON，再这样配：
+```json
+{
+  "cases": [
+    {
+      "case_id": "order",
+      "conditions": [
+        {"variable_selector": ["intent_code", "intent"], "operator": "is", "value": "order_search"}
+      ]
+    },
+    {
+      "case_id": "chat",
+      "conditions": [
+        {"variable_selector": ["intent_code", "intent"], "operator": "is", "value": "chat"}
+      ]
+    }
+  ],
+  "default_case_id": "default"
+}
 ```
-[IfElse] ── source_handle="order"   → [查订单]
-         ── source_handle="default" → [End]
+
+分支连线按“边名称”匹配 `case_id`：
+```
+[IfElse] ── 边名称="order"   → [查订单]
+         ── 边名称="chat"    → [聊天回复]
+         ── 边名称="default" → [End]
 ```
 
 支持操作符：`is` / `not_empty` / `lt` / `gte`
@@ -172,7 +218,7 @@ Agent 由节点（Node）和连线（Edge）组成。执行时采用 **ReAct 模
 
 ### 循环 (LoopNode)
 
-容器节点，内部子节点循环执行。
+循环节点，执行子流程并在每轮结束后按条件判断是否继续。
 
 **1. 拖入「循环」节点** → 双击配置：
 ```json
@@ -186,9 +232,18 @@ Agent 由节点（Node）和连线（Edge）组成。执行时采用 **ReAct 模
 
 **2. 循环体内子节点**设 `parent_id = 循环节点ID`
 
-**3. 出口边**设 `source_handle="loop_exit"`
+**3. `start_node_id` / `end_node_id`** 填循环体首尾节点 ID
 
-每轮执行 `start → end`，满足条件且未达上限则继续，否则走 `loop_exit` 出口。
+**4. 出口边**双击命名为 `loop_exit`（底层仍兼容 `source_handle="loop_exit"`）
+
+执行器会在每轮结束后用 `condition` 去判断 `node_outputs`；条件不满足时退出循环并走 `loop_exit`。
+
+### 当前实现注意
+
+- `if_else` 和 `loop` 现在推荐直接用边名称做路由；底层仍兼容 `source_handle`。
+- 条件判断读的是 `node_outputs`，不是直接读取 `input.message`。
+- 如果要根据用户输入分流，推荐先用一个 `llm` 或 `code` 节点把输入整理成明确字段，再接 `if_else`。
+- 当前前端编辑器还没有把 `source_handle` / `parent_id` 做成完整可视化配置项；底层执行器和 schema 已支持，但 UI 和保存链路还需要进一步打通。
 
 ## 第三方调用
 

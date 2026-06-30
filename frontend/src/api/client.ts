@@ -12,6 +12,7 @@ export interface AgentNode {
   type: 'start' | 'llm' | 'http' | 'db' | 'code' | 'end' | 'if_else' | 'loop'
   label: string
   config: Record<string, unknown>
+  parent_id?: string | null
   position_x?: number
   position_y?: number
 }
@@ -20,6 +21,7 @@ export interface AgentEdge {
   id?: string
   source_node_id: string
   target_node_id: string
+  source_handle?: string | null
   condition?: string | null
 }
 
@@ -76,8 +78,20 @@ export async function createAgent(payload: {
   description?: string | null
   llm_model?: string | null
   llm_temperature?: string | null
-  nodes: Omit<AgentNode, 'id' | 'agent_id'>[]
-  edges: Omit<AgentEdge, 'id' | 'agent_id'>[]
+  nodes: Array<{
+    type: AgentNode['type']
+    label: string
+    config: Record<string, unknown>
+    parent_id?: string | number | null
+    position_x?: number
+    position_y?: number
+  }>
+  edges: Array<{
+    source_node_id: string | number
+    target_node_id: string | number
+    source_handle?: string | null
+    condition?: string | null
+  }>
 }): Promise<Agent> {
   const { data } = await api.post<Agent>('/agents', payload)
   return data
@@ -90,8 +104,20 @@ export async function updateAgent(
     description?: string | null
     llm_model?: string | null
     llm_temperature?: string | null
-    nodes?: Omit<AgentNode, 'id' | 'agent_id'>[]
-    edges?: Omit<AgentEdge, 'id' | 'agent_id'>[]
+    nodes?: Array<{
+      type: AgentNode['type']
+      label: string
+      config: Record<string, unknown>
+      parent_id?: string | number | null
+      position_x?: number
+      position_y?: number
+    }>
+    edges?: Array<{
+      source_node_id: string | number
+      target_node_id: string | number
+      source_handle?: string | null
+      condition?: string | null
+    }>
   }
 ): Promise<Agent> {
   const { data } = await api.put<Agent>(`/agents/${id}`, payload)

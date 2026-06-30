@@ -37,17 +37,22 @@ def build_graph(
     node_map = {str(n.id): n for n in nodes}
     node_by_id = {str(n.id): n for n in nodes}
 
-    # Build adjacency: children[node_id] = [target_node_id]
+    # Build adjacency and reverse adjacency for routing / condition context
     children = {str(n.id): [] for n in nodes}
+    incoming_sources = {str(n.id): [] for n in nodes}
     # Edge data by (source, handle): store target for handle-based routing
     handle_edges: dict[str, dict[str, str]] = {}
     for e in edges:
         src = str(e.source_node_id)
         tgt = str(e.target_node_id)
-        handle = e.source_handle or ""
+        src_node = node_by_id.get(src)
+        route_key = e.source_handle or ""
+        if not route_key and src_node and src_node.type in ("if_else", "loop"):
+            route_key = (e.condition or "").strip()
         children.setdefault(src, []).append(tgt)
-        if handle:
-            handle_edges.setdefault(src, {})[handle] = tgt
+        incoming_sources.setdefault(tgt, []).append(src)
+        if route_key:
+            handle_edges.setdefault(src, {})[route_key] = tgt
 
     # Topological sort (for normal nodes, excluding loop internals)
     in_degree = {k: 0 for k in node_map}
@@ -84,6 +89,65 @@ def build_graph(
         outputs = dict(state.get("node_outputs", {}))
         outputs[nid] = data
         return {"node_outputs": outputs}
+
+    def build_condition_context(state: AgentState, nid: str) -> tuple[dict, object | None]:
+        outputs = dict(state.get("node_outputs", {}))
+        upstream_output = None
+        for upstream_id in incoming_sources.get(nid, []):
+            if upstream_id in outputs:
+                upstream_output = outputs[upstream_id]
+
+        context = dict(outputs)
+        if isinstance(upstream_output, dict):
+            for key, value in upstream_output.items():
+                context.setdefault(key, value)
+        elif upstream_output is not None:
+            context.setdefault("value", upstream_output)
+        context["_upstream"] = upstream_output
+        return context, upstream_output
+
+    def normalize_selector(selector) -> list:
+        if isinstance(selector, list):
+            parts = selector
+        elif isinstance(selector, str):
+            parts = [part.strip() for part in selector.split('.') if part.strip()]
+        else:
+            parts = []
+
+        normalized = []
+        for part in parts:
+            if isinstance(part, int):
+                normalized.append(part)
+            elif isinstance(part, str) and part.isdigit():
+                normalized.append(int(part))
+            else:
+                normalized.append(part)
+        return normalized
+
+    def resolve_if_cases(if_config: dict) -> list[dict]:
+        cases = if_config.get("cases", [])
+        if cases:
+            return cases
+
+        selector = normalize_selector(if_config.get("selector") or if_config.get("field_path") or "text")
+        default_operator = if_config.get("operator", "is")
+        branches = if_config.get("branches", [])
+        resolved_cases = []
+        for branch in branches:
+            case_id = branch.get("case_id", "")
+            if not case_id:
+                continue
+            if branch.get("conditions"):
+                resolved_cases.append({"case_id": case_id, "conditions": branch.get("conditions", [])})
+                continue
+            condition = {
+                "variable_selector": normalize_selector(branch.get("selector")) or selector,
+                "operator": branch.get("operator", default_operator),
+            }
+            if "value" in branch:
+                condition["value"] = branch.get("value")
+            resolved_cases.append({"case_id": case_id, "conditions": [condition]})
+        return resolved_cases
 
     for n in nodes:
         nid = str(n.id)
@@ -252,18 +316,18 @@ def build_graph(
         elif ntype == "if_else":
             def make_if_else_fn(sid, stype, slabel, if_config):
                 def fn(state: AgentState) -> dict:
-                    node_outputs = state.get("node_outputs", {})
-                    cases = if_config.get("cases", [])
+                    condition_context, upstream_output = build_condition_context(state, sid)
+                    cases = resolve_if_cases(if_config)
                     matched = None
                     for case in cases:
                         conds = case.get("conditions", [])
-                        if evaluate_conditions(conds, node_outputs):
+                        if evaluate_conditions(conds, condition_context):
                             matched = case.get("case_id", "")
                             break
                     if not matched:
                         matched = if_config.get("default_case_id", "default")
                     s1 = mark_step(state, sid, stype, slabel, "success")
-                    s2 = set_output(state, sid, {"matched_case": matched})
+                    s2 = set_output(state, sid, {"matched_case": matched, "upstream_output": upstream_output})
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_if_else_fn(nid, ntype, nlabel, nconfig))

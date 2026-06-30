@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
     frontend_dist_dir: str = "/app/frontend_dist"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
