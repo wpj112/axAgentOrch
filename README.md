@@ -10,6 +10,8 @@ LLM 智能体可视化编排平台。通过拖拽画布定义 Agent 工作流，
 | 🧠 LLM 执行 | LangGraph ReAct Agent，LLM 自主决策何时调用工具 |
 | 🔧 工具节点 | HTTP 请求、数据库查询（SELECT）、代码执行（Python/JS） |
 | 🔗 条件路由 | 边支持条件表达式，LLM 输出匹配时走相应分支 |
+| 🔀 条件分支 | IfElseNode，结构化条件 + handle 路由，支持 is/not_empty/lt/gte |
+| 🔁 循环控制 | LoopNode，容器节点循环执行子流程，max_iterations 保护 |
 | 🌐 同步/异步 | `?mode=sync` 阻塞返回 / `?mode=async` 立即返回 task_id 轮询 |
 | ⚙️ 全局配置 | Model / API Key / Base URL / Temperature，支持 OpenAI + Ollama + DeepSeek |
 | 🏷️ Agent 覆盖 | 每个 Agent 可覆盖全局的 Model 和 Temperature |
@@ -142,15 +144,51 @@ Agent 由节点（Node）和连线（Edge）组成。执行时采用 **ReAct 模
 | **输出** | `{"output": "代码 stdout 输出"}` 或 `{"error": "错误信息"}` |
 | **结果流向** | 计算结果返回给 LLM |
 
-### 条件路由
+### 条件分支 (IfElseNode)
 
-边（Edge）可设置 `condition` 表达式。当 LLM 输出包含该字符串时，走对应分支。
+控制节点，根据前一个节点的输出决定走哪条分支。
 
+**1. 拖入「条件」节点** → 双击编辑 Cases 配置：
+```json
+{
+  "cases": [
+    {"case_id": "order", "conditions": [
+      {"variable_selector": ["intent_node_id", "intent"], "operator": "is", "value": "order_search"}
+    ]}
+  ],
+  "default_case_id": "default"
+}
 ```
-  [LLM]──"success"──→ [HTTP：发通知]
-    │
-    └──"failed"──→ [End：返回错误]
+
+**2. 连边时设 source_handle 匹配 case_id：**
 ```
+[IfElse] ── source_handle="order"   → [查订单]
+         ── source_handle="default" → [End]
+```
+
+支持操作符：`is` / `not_empty` / `lt` / `gte`
+
+---
+
+### 循环 (LoopNode)
+
+容器节点，内部子节点循环执行。
+
+**1. 拖入「循环」节点** → 双击配置：
+```json
+{
+  "max_iterations": 5,
+  "condition": {"variable_selector": ["judge_id", "conf"], "operator": "lt", "value": 0.8},
+  "start_node_id": "<循环体首节点ID>",
+  "end_node_id": "<循环体尾节点ID>"
+}
+```
+
+**2. 循环体内子节点**设 `parent_id = 循环节点ID`
+
+**3. 出口边**设 `source_handle="loop_exit"`
+
+每轮执行 `start → end`，满足条件且未达上限则继续，否则走 `loop_exit` 出口。
 
 ## 第三方调用
 
@@ -282,6 +320,33 @@ GET /api/agents/{agent_id}/executions
   "config": {
     "language": "python",
     "source_code": "result = _context.get('data', [])\nprint(json.dumps(result))"
+  }
+}
+
+// 条件分支节点
+{
+  "type": "if_else",
+  "label": "路由",
+  "config": {
+    "cases": [{
+      "case_id": "order",
+      "conditions": [
+        {"variable_selector": ["intent_node", "intent"], "operator": "is", "value": "order_search"}
+      ]
+    }],
+    "default_case_id": "default"
+  }
+}
+
+// 循环节点
+{
+  "type": "loop",
+  "label": "重试",
+  "config": {
+    "max_iterations": 3,
+    "condition": {"variable_selector": ["judge_node", "confidence"], "operator": "lt", "value": 0.8},
+    "start_node_id": "uuid-of-first-child",
+    "end_node_id": "uuid-of-last-child"
   }
 }
 ```
