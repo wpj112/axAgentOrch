@@ -382,20 +382,20 @@ ${detail}`)
               </div>
             </div>
 
-            <div style={{ padding: 14, borderTop: '1px solid #223452', background: '#142238', display: 'grid', gap: 10 }}>
-              <textarea
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #223452', background: '#142238', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
                 value={runText}
                 onChange={(e) => setRunText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !running && runText.trim()) {
+                  if (e.key === 'Enter' && !running && runText.trim()) {
                     e.preventDefault()
                     doRun()
                   }
                 }}
-                placeholder="输入消息，Ctrl+Enter 运行"
+                placeholder="输入消息，按 Enter 发送"
                 style={{
-                  minHeight: 90, padding: '10px 12px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 10,
-                  background: '#0f1a30', color: '#e0e0e0', resize: 'vertical',
+                  flex: 1, height: 36, padding: '0 12px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 8,
+                  background: '#0f1a30', color: '#e0e0e0', outline: 'none',
                 }}
                 disabled={isNew}
               />
@@ -403,12 +403,13 @@ ${detail}`)
                 onClick={doRun}
                 disabled={running || isNew || !runText.trim()}
                 style={{
-                  padding: '10px 14px', fontSize: 14, border: '1px solid #4caf50', borderRadius: 10,
+                  height: 36, padding: '0 16px', fontSize: 13, border: '1px solid #4caf50', borderRadius: 8,
                   cursor: running || isNew || !runText.trim() ? 'not-allowed' : 'pointer',
                   background: '#1b3a1e', color: '#81c784', opacity: running || isNew || !runText.trim() ? 0.5 : 1,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {running ? '运行中...' : '运行'}
+                {running ? '...' : '发送'}
               </button>
             </div>
           </div>
