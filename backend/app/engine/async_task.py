@@ -39,7 +39,7 @@ def run_agent_async(self, agent_id_str: str, input_data: dict, exec_id_str: str)
 
             try:
                 graph = build_graph(agent.nodes, agent.edges, model=model, api_key=api_key, base_url=base_url, temperature=temp)
-                result = graph.invoke({"messages": [], "input": input_data})
+                result = graph.invoke({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}})
 
                 final_messages = result.get("messages", [])
                 last_message = final_messages[-1] if final_messages else None

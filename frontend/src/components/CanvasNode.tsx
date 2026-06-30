@@ -3,11 +3,13 @@ import { Handle, Position, type NodeProps } from 'reactflow'
 const TYPE_LABELS: Record<string, string> = {
   start: '开始', llm: 'LLM', http: 'HTTP',
   db: '数据库', code: '代码', end: '结束',
+  if_else: '条件', loop: '循环',
 }
 
 const TYPE_COLORS: Record<string, string> = {
   start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
   db: '#ff9800', code: '#795548', end: '#f44336',
+  if_else: '#e91e63', loop: '#00bcd4',
 }
 
 const STATUS_ICONS: Record<string, { text: string; color: string }> = {

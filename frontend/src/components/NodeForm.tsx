@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react'
 import type { AgentNode } from '../api/client'
 
+const defaultIfElseCases = JSON.stringify({
+  cases: [
+    {
+      case_id: "case_1",
+      conditions: [
+        { variable_selector: ["node_id", "field"], operator: "is", value: "target_value" }
+      ]
+    }
+  ],
+  default_case_id: "default"
+}, null, 2)
+
+const defaultLoopCondition = JSON.stringify({
+  variable_selector: ["node_id", "field"],
+  operator: "lt",
+  value: 0.8
+}, null, 2)
+
 interface NodeFormProps {
   initial?: AgentNode | null
   onSave: (node: AgentNode) => void
@@ -16,7 +34,7 @@ const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWe
 
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
 
-const TYPE_OPTIONS = ['start', 'llm', 'http', 'db', 'code', 'end']
+const TYPE_OPTIONS = ['start', 'llm', 'http', 'db', 'code', 'if_else', 'loop', 'end']
 
 function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
   const [type, setType] = useState(initial?.type || 'llm')
@@ -38,7 +56,25 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
   }, [initial])
 
   const handleSave = () => {
-    onSave({ type: type as AgentNode['type'], label, config: config as Record<string, unknown> })
+    const finalConfig: Record<string, unknown> = { ...config }
+    // Parse JSON fields for if_else and loop on save
+    if (type === 'if_else') {
+      try { finalConfig.cases = JSON.parse((config.cases_json as string) || '{}') } catch { finalConfig.cases = [] }
+      finalConfig.default_case_id = config.default_case_id || 'default'
+      delete finalConfig.cases_json
+      delete finalConfig.default_case_id
+    }
+    if (type === 'loop') {
+      try { finalConfig.condition = JSON.parse((config.condition_json as string) || '{}') } catch { finalConfig.condition = {} }
+      finalConfig.max_iterations = parseInt((config.max_iterations as string) || '5', 10)
+      finalConfig.start_node_id = config.start_node_id || ''
+      finalConfig.end_node_id = config.end_node_id || ''
+      delete finalConfig.condition_json
+      delete finalConfig.max_iterations
+      delete finalConfig.start_node_id
+      delete finalConfig.end_node_id
+    }
+    onSave({ type: type as AgentNode['type'], label, config: finalConfig })
   }
 
   const setConfigField = (key: string, value: string) => {
@@ -142,6 +178,56 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
           <div style={fieldStyle}>
             <label style={labelStyle}>Source Code</label>
             <textarea value={config.source_code || ''} onChange={(e) => setConfigField('source_code', e.target.value)} rows={6} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 13, resize: 'vertical' }} />
+          </div>
+        </>
+      )}
+
+      {type === 'if_else' && (
+        <>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Cases (JSON)</label>
+            <textarea
+              value={config.cases_json || defaultIfElseCases}
+              onChange={(e) => setConfigField('cases_json', e.target.value)}
+              rows={8}
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+            />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Default Case ID</label>
+            <input value={config.default_case_id || 'default'} onChange={(e) => setConfigField('default_case_id', e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
+            边通过 source_handle 匹配 case_id。例如 source_handle="order_search" 连到对应分支节点。
+          </div>
+        </>
+      )}
+
+      {type === 'loop' && (
+        <>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Max Iterations</label>
+            <input value={config.max_iterations || '5'} onChange={(e) => setConfigField('max_iterations', e.target.value)} style={inputStyle} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Condition (JSON)</label>
+            <textarea
+              value={config.condition_json || defaultLoopCondition}
+              onChange={(e) => setConfigField('condition_json', e.target.value)}
+              rows={5}
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+            />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Start Node ID</label>
+            <input value={config.start_node_id || ''} onChange={(e) => setConfigField('start_node_id', e.target.value)} placeholder="循环体第一个节点ID" style={inputStyle} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>End Node ID</label>
+            <input value={config.end_node_id || ''} onChange={(e) => setConfigField('end_node_id', e.target.value)} placeholder="循环体最后一个节点ID" style={inputStyle} />
+          </div>
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
+            循环体内节点需设置 parent_id=此节点ID。出口边用 source_handle="loop_exit"。
           </div>
         </>
       )}

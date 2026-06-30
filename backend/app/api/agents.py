@@ -26,8 +26,8 @@ async def create_agent(data: AgentCreate, db: AsyncSession = Depends(get_db)):
         llm_temperature=agent.llm_temperature,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
-        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
-        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "condition": e.condition} for e in agent.edges],
+        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
     )
 
 
@@ -43,8 +43,8 @@ async def list_agents(search: str | None = None, db: AsyncSession = Depends(get_
             description=agent.description,
             created_at=agent.created_at,
             updated_at=agent.updated_at,
-            nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
-            edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "condition": e.condition} for e in agent.edges],
+            nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+            edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
         ))
     return AgentListResponse(items=items, total=len(items))
 
@@ -63,8 +63,8 @@ async def get_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         llm_temperature=agent.llm_temperature,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
-        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
-        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "condition": e.condition} for e in agent.edges],
+        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
     )
 
 
@@ -82,8 +82,8 @@ async def update_agent(agent_id: uuid.UUID, data: AgentUpdate, db: AsyncSession 
         llm_temperature=agent.llm_temperature,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
-        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
-        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "condition": e.condition} for e in agent.edges],
+        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
     )
 
 

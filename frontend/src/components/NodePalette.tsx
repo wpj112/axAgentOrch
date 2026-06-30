@@ -4,12 +4,15 @@ const NODE_TYPES = [
   { type: 'http', label: 'HTTP' },
   { type: 'db', label: '数据库' },
   { type: 'code', label: '代码' },
+  { type: 'if_else', label: '条件' },
+  { type: 'loop', label: '循环' },
   { type: 'end', label: '结束' },
 ]
 
 const TYPE_COLORS: Record<string, string> = {
   start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
   db: '#ff9800', code: '#795548', end: '#f44336',
+  if_else: '#e91e63', loop: '#00bcd4',
 }
 
 interface NodePaletteProps {

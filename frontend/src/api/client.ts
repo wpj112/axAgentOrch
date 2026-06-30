@@ -9,7 +9,7 @@ const api = axios.create({
 
 export interface AgentNode {
   id?: string
-  type: 'start' | 'llm' | 'http' | 'db' | 'code' | 'end'
+  type: 'start' | 'llm' | 'http' | 'db' | 'code' | 'end' | 'if_else' | 'loop'
   label: string
   config: Record<string, unknown>
   position_x?: number

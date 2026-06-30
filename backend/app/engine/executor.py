@@ -42,7 +42,7 @@ async def run_agent(db: AsyncSession, agent_id: uuid.UUID, input_data: dict) -> 
 
     try:
         graph = build_graph(agent.nodes, agent.edges, model=model, api_key=api_key, base_url=base_url, temperature=temp)
-        result = graph.invoke({"messages": [], "input": input_data})
+        result = graph.invoke({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}})
 
         final_messages = result.get("messages", [])
         last_message = final_messages[-1] if final_messages else None
@@ -81,7 +81,7 @@ async def run_agent_stream(
 
         last_steps: list[dict] = []
         final_result = ""
-        async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": []}):
+        async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}}):
             for node_id, state in event.items():
                 steps = state.get("execution_steps", [])
                 # Capture final LLM output

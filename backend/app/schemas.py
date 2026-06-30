@@ -8,9 +8,10 @@ class NodeConfig(BaseModel):
 
 
 class NodeCreate(BaseModel):
-    type: str = Field(..., description="start | llm | http | db | code | end")
+    type: str = Field(..., description="start | llm | http | db | code | end | if_else | loop")
     label: str
     config: dict = Field(default_factory=dict)
+    parent_id: uuid.UUID | None = None
     position_x: float = 0
     position_y: float = 0
 
@@ -21,6 +22,7 @@ class NodeResponse(BaseModel):
     type: str
     label: str
     config: dict
+    parent_id: uuid.UUID | None = None
     position_x: float
     position_y: float
 
@@ -30,6 +32,7 @@ class NodeResponse(BaseModel):
 class EdgeCreate(BaseModel):
     source_node_id: int | uuid.UUID
     target_node_id: int | uuid.UUID
+    source_handle: str | None = None
     condition: str | None = None
 
 
@@ -38,6 +41,7 @@ class EdgeResponse(BaseModel):
     agent_id: uuid.UUID
     source_node_id: uuid.UUID
     target_node_id: uuid.UUID
+    source_handle: str | None = None
     condition: str | None = None
 
     model_config = {"from_attributes": True}

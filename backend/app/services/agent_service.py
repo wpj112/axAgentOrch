@@ -31,6 +31,7 @@ class AgentService:
                 type=node_data.type,
                 label=node_data.label,
                 config=node_data.config,
+                parent_id=node_data.parent_id,
                 position_x=node_data.position_x,
                 position_y=node_data.position_y,
             )
