@@ -162,3 +162,15 @@ export async function updateSettings(settings: Partial<AppSettings>): Promise<Ap
   const { data } = await api.put<AppSettings>('/settings', settings)
   return data
 }
+
+// ---- Import/Export ----
+
+export async function exportAgent(id: string): Promise<Record<string, unknown>> {
+  const { data } = await api.get(`/agents/${id}/export`)
+  return data
+}
+
+export async function importAgent(payload: Record<string, unknown>): Promise<Agent> {
+  const { data } = await api.post<Agent>('/agents/import', payload)
+  return data
+}

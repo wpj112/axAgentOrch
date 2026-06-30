@@ -1,7 +1,7 @@
-import axios from 'axios'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { fetchAgent, createAgent, updateAgent, type AgentNode } from '../api/client'
+import axios from 'axios'
+import { fetchAgent, createAgent, updateAgent, exportAgent, type AgentNode } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
@@ -113,7 +113,7 @@ function AgentEditor() {
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const detail = typeof err.response?.data === 'string'
           ? err.response.data
@@ -189,6 +189,28 @@ function AgentEditor() {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           {saved && <span style={{ color: '#81c784', fontSize: 12 }}>✓ 已保存</span>}
           {saving && <span style={{ color: '#ffb74d', fontSize: 12 }}>保存中...</span>}
+          <button
+            onClick={async () => {
+              if (!id || isNew) return
+              try {
+                const data = await exportAgent(id)
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url; a.download = `${name}.json`
+                a.click(); URL.revokeObjectURL(url)
+              } catch { alert('导出失败') }
+            }}
+            disabled={isNew || !id}
+            style={{
+              padding: '8px 14px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 6,
+              cursor: (isNew || !id) ? 'not-allowed' : 'pointer',
+              background: '#1e2a4a', color: '#b0bec5',
+              opacity: (isNew || !id) ? 0.5 : 1,
+            }}
+          >
+            导出
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}

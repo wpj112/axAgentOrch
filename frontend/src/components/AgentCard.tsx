@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Agent } from '../api/client'
+import { type Agent, exportAgent } from '../api/client'
 
 const apiUrl = (id: string) => `${window.location.origin}/api/agents/${id}/run`
 
@@ -22,6 +22,17 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const handleExport = async () => {
+    try {
+      const data = await exportAgent(agent.id)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `${agent.name}.json`
+      a.click(); URL.revokeObjectURL(url)
+    } catch { alert('导出失败') }
+  }
+
   return (
     <div
       style={{
@@ -40,6 +51,7 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+          <button onClick={handleExport} style={{ padding: '6px 10px', fontSize: 13, background: '#1e2a4a', color: '#b0bec5', border: '1px solid #2a3a5c', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}>导出</button>
           <a href={`/agents/${agent.id}`} style={{ padding: '6px 14px', fontSize: 13, background: '#1565c0', color: '#fff', border: 'none', borderRadius: 4, textDecoration: 'none' }}>编辑</a>
           <button onClick={() => onDelete(agent.id)} style={{ padding: '6px 14px', fontSize: 13, background: '#c62828', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>删除</button>
         </div>

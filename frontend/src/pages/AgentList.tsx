@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchAgents, deleteAgent as apiDeleteAgent, type Agent } from '../api/client'
+import { fetchAgents, deleteAgent as apiDeleteAgent, importAgent, type Agent } from '../api/client'
 import AgentCard, { apiUrl, copyApiUrl } from '../components/AgentCard'
 
 const btnStyle: React.CSSProperties = {
@@ -47,8 +47,27 @@ function AgentList() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('确认删除此智能体？')) return
     await apiDeleteAgent(id)
     setAgents((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      try {
+        const text = await file.text()
+        const json = JSON.parse(text)
+        await importAgent(json)
+        loadAgents()
+        alert('导入成功')
+      } catch { alert('导入失败，请检查 JSON 格式') }
+    }
+    input.click()
   }
 
   return (
@@ -67,6 +86,7 @@ function AgentList() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={handleImport} style={{ padding: '8px 14px', background: '#1e2a4a', color: '#b0bec5', border: '1px solid #2a3a5c', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>📥 导入</button>
           <a href="/settings" style={{ padding: '8px 16px', background: '#1e2a4a', color: '#b0bec5', border: '1px solid #2a3a5c', borderRadius: 6, textDecoration: 'none', fontSize: 13 }}>⚙ 设置</a>
           <a href="/agents/new" style={{ padding: '8px 20px', background: '#1976d2', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', fontSize: 14 }}>+ 新建智能体</a>
         </div>

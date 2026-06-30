@@ -103,6 +103,17 @@ class RunResponse(BaseModel):
     error_message: str | None
 
 
+class AgentExport(BaseModel):
+    name: str
+    description: str | None = None
+    llm_model: str | None = None
+    llm_temperature: str | None = None
+    nodes: list[NodeCreate]
+    edges: list[EdgeCreate]
+
+    model_config = {"from_attributes": True}
+
+
 class AgentListResponse(BaseModel):
     items: list[AgentResponse]
     total: int

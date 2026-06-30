@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import (
-    AgentCreate, AgentUpdate, AgentResponse, AgentListResponse,
+    AgentCreate, AgentUpdate, AgentResponse, AgentListResponse, AgentExport,
     RunRequest, RunResponse, ExecutionResponse,
 )
 from app.services.agent_service import AgentService
@@ -181,4 +181,37 @@ async def get_execution(execution_id: uuid.UUID, db: AsyncSession = Depends(get_
         id=execution.id, agent_id=execution.agent_id, input=execution.input, output=execution.output,
         status=execution.status, error_message=execution.error_message,
         started_at=execution.started_at, completed_at=execution.completed_at,
+    )
+
+
+@router.get("/{agent_id}/export", response_model=AgentExport)
+async def export_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    service = AgentService(db)
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return AgentExport(
+        name=agent.name,
+        description=agent.description,
+        llm_model=agent.llm_model,
+        llm_temperature=agent.llm_temperature,
+        nodes=[{"type": n.type, "label": n.label, "config": n.config, "parent_id": n.parent_id, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
+        edges=[{"source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
+    )
+
+
+@router.post("/import", response_model=AgentResponse, status_code=201)
+async def import_agent(data: AgentCreate, db: AsyncSession = Depends(get_db)):
+    service = AgentService(db)
+    agent = await service.create_agent(data)
+    return AgentResponse(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        llm_model=agent.llm_model,
+        llm_temperature=agent.llm_temperature,
+        created_at=agent.created_at,
+        updated_at=agent.updated_at,
+        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
     )
