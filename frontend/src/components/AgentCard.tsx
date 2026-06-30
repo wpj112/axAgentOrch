@@ -14,6 +14,7 @@ interface AgentCardProps {
 }
 
 function formatDateTime(value: string) {
+  if (!value) return '-'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
@@ -72,9 +73,9 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
           {copied ? '已复制' : '复制'}
         </button>
       </div>
-      <div style={{ marginTop: 12, fontSize: 12, color: '#6a7a8a', display: 'grid', gap: 4 }}>
-        <div>创建：{new Date(agent.created_at).toLocaleDateString('zh-CN')}</div>
-        <div>编辑：{formatDateTime(agent.updated_at)}</div>
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #2a3a5c', fontSize: 12, color: '#90a4ae', display: 'flex', justifyContent: 'space-between' }}>
+        <span>创建于 {formatDateTime(agent.created_at)}</span>
+        <span>编辑于 {formatDateTime(agent.updated_at)}</span>
       </div>
     </div>
   )

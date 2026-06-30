@@ -190,13 +190,23 @@ async def export_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     agent = await service.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    nodes_list = list(agent.nodes)
+    node_id_to_idx = {str(n.id): idx for idx, n in enumerate(nodes_list)}
     return AgentExport(
         name=agent.name,
         description=agent.description,
         llm_model=agent.llm_model,
         llm_temperature=agent.llm_temperature,
-        nodes=[{"type": n.type, "label": n.label, "config": n.config, "parent_id": n.parent_id, "position_x": n.position_x, "position_y": n.position_y} for n in agent.nodes],
-        edges=[{"source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
+        nodes=[{
+            "type": n.type, "label": n.label, "config": n.config,
+            "parent_id": node_id_to_idx.get(str(n.parent_id)) if n.parent_id else None,
+            "position_x": n.position_x, "position_y": n.position_y,
+        } for n in nodes_list],
+        edges=[{
+            "source_node_id": node_id_to_idx.get(str(e.source_node_id), 0),
+            "target_node_id": node_id_to_idx.get(str(e.target_node_id), 0),
+            "source_handle": e.source_handle, "condition": e.condition,
+        } for e in agent.edges],
     )
 
 
