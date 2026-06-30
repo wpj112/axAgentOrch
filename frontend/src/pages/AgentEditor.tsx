@@ -284,7 +284,10 @@ function AgentEditor() {
             background: '#1e2a4a', border: '1px solid #2a3a5c',
             fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
           }}>
-            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 拖拽 Handle <strong style={{ color: '#b0bec5' }}>连线</strong> · <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除
+            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 拖拽 Handle <strong style={{ color: '#b0bec5' }}>连线</strong><br />
+            🔄 循环内子节点：拖入节点 → 双击 → 「从属于」下拉选 Loop 节点<br />
+            🔀 条件分支：连线 → 双击边设 <strong style={{ color: '#b0bec5' }}>sourceHandle</strong> 匹配 case_id<br />
+            📥 <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除 · 列表页可导入导出 JSON
           </div>
         </div>
 
