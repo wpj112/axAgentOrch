@@ -190,19 +190,16 @@ function FlowCanvasInner({
   }, [onDoubleClickNode])
 
   const onEdgeDoubleClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
-    const current = edge.data?.condition || ''
-    const nextValue = prompt('请输入边名称 / 分支名，例如 weather、chat、default、loop_exit', current)
-    if (nextValue === null) return
-    const trimmed = nextValue.trim()
-    setRfEdges((eds) => {
-      const next = eds.map((item) => item.id === edge.id
-        ? {
-            ...item,
-            label: trimmed || undefined,
-            style: trimmed ? { strokeDasharray: '5 5' } : {},
-            data: { ...item.data, condition: trimmed || null },
-          }
-        : item)
+    const current = edge.data?.sourceHandle || ''
+    const val = prompt('sourceHandle（条件分支用 case_id，循环用 loop_exit）:\n', current)
+    if (val === null) return
+    setRfEdges(eds => {
+      const next = eds.map(e => {
+        if (e.id === edge.id) {
+          return { ...e, sourceHandle: val.trim() || undefined, data: { ...e.data, sourceHandle: val.trim() || null } }
+        }
+        return e
+      })
       syncToParent(rfNodesRef.current, next)
       return next
     })

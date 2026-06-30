@@ -350,21 +350,21 @@ def build_graph(
         elif ntype == "loop":
             def make_loop_fn(sid, stype, slabel, loop_config):
                 def fn(state: AgentState) -> dict:
-                    max_iter = loop_config.get("max_iterations", 5)
+                    max_iter = int(loop_config.get("max_iterations", 5))
                     condition_cfg = loop_config.get("condition", {})
                     start_node_id = str(loop_config.get("start_node_id", ""))
                     end_node_id = str(loop_config.get("end_node_id", ""))
 
-                    # Find child nodes (marked by parent_id == sid)
                     child_nodes = [n for n in nodes if str(getattr(n, "parent_id", "")) == sid]
-                    child_edges = [e for e in edges if str(e.source_node_id) in [str(c.id) for c in child_nodes] and str(e.target_node_id) in [str(c.id) for c in child_nodes]]
+                    child_edges = [e for e in edges
+                                   if str(e.source_node_id) in [str(c.id) for c in child_nodes]
+                                   and str(e.target_node_id) in [str(c.id) for c in child_nodes]]
 
-                    if not child_nodes or not start_node_id:
+                    if not child_nodes:
                         s1 = mark_step(state, sid, stype, slabel, "success")
                         s2 = set_output(state, sid, {"iterations": 0})
                         return {**s1, **s2}
 
-                    # Build child execution order via topological sort
                     child_map = {str(c.id): c for c in child_nodes}
                     child_in = {str(c.id): 0 for c in child_nodes}
                     child_out = {str(c.id): [] for c in child_nodes}
@@ -383,14 +383,23 @@ def build_graph(
                             if child_in[nxt] == 0:
                                 cq.append(nxt)
 
+                    # Filter to start→end range if specified
+                    if start_node_id in child_map and end_node_id in child_map and start_node_id != "" and end_node_id != "":
+                        start_idx = next((i for i, cid in enumerate(child_order) if cid == start_node_id), 0)
+                        end_idx = next((i for i, cid in enumerate(child_order) if cid == end_node_id), len(child_order) - 1)
+                        if start_idx <= end_idx:
+                            child_order = child_order[start_idx:end_idx + 1]
+
                     iteration = 0
                     for iteration in range(max_iter):
-                        state = {**state, "execution_steps": [s for s in state.get("execution_steps", []) if s["node_id"] != sid]}
                         step = mark_step(state, sid, stype, slabel, "running")
                         state = {**state, **step}
-                        state["execution_steps"].append({"node_id": f"{sid}_iter{iteration}", "type": "loop_iter", "label": f"Iter {iteration+1}", "status": "running", "started_at": datetime.now(timezone.utc).isoformat()})
+                        state.setdefault("execution_steps", []).append({
+                            "node_id": f"{sid}_iter{iteration}", "type": "loop_iter",
+                            "label": f"Iter {iteration+1}", "status": "running",
+                            "started_at": datetime.now(timezone.utc).isoformat(),
+                        })
 
-                        # Execute each child node in order manually
                         for cid in child_order:
                             child = child_map.get(cid)
                             if not child:
@@ -408,17 +417,18 @@ def build_graph(
                                     if not msgs:
                                         user_text = str(input_data) if input_data else "Process the request."
                                         system_text = ccfg.get("system_prompt", "")
-                                        context = ""
+                                        ctx_parts = []
                                         if tool_results:
                                             for tn, tr in tool_results.items():
-                                                context += f"{tn}: {json.dumps(tr, indent=2, ensure_ascii=False)}\n"
+                                                ctx_parts.append(f"{tn}: {json.dumps(tr, indent=2, ensure_ascii=False)}")
                                         if node_outputs:
                                             for nk, nv in node_outputs.items():
-                                                context += f"{nk}: {json.dumps(nv, indent=2, ensure_ascii=False)}\n"
+                                                ctx_parts.append(f"{nk}: {json.dumps(nv, indent=2, ensure_ascii=False)}")
+                                        ctx_str = "\n".join(ctx_parts)
                                         parts = []
                                         if system_text:
                                             parts.append(SystemMessage(content=system_text))
-                                        parts.append(HumanMessage(content=f"{context}\nUser request: {user_text}" if context else user_text))
+                                        parts.append(HumanMessage(content=f"{ctx_str}\nUser request: {user_text}" if ctx_str else user_text))
                                         msgs = parts
                                     resp = llm.invoke(msgs)
                                     output_content = resp.content if hasattr(resp, "content") else str(resp)
@@ -440,9 +450,9 @@ def build_graph(
                                     try:
                                         import httpx
                                         with httpx.Client(timeout=30) as client:
-                                            resp2 = client.request(method=method, url=url, headers=headers, json=body if method.upper() in ("POST","PUT","PATCH") else None)
-                                            resp2.raise_for_status()
-                                            data = resp2.json() if "application/json" in resp2.headers.get("content-type","") else resp2.text
+                                            r = client.request(method=method, url=url, headers=headers, json=body if method.upper() in ("POST", "PUT", "PATCH") else None)
+                                            r.raise_for_status()
+                                            data = r.json() if "application/json" in r.headers.get("content-type", "") else r.text
                                     except Exception as e2:
                                         data = {"error": str(e2)}
                                     state = {**state, **set_output(state, cid, data if isinstance(data, dict) else {"result": data})}
@@ -454,9 +464,9 @@ def build_graph(
                                     try:
                                         import subprocess, tempfile, os
                                         with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
-                                            ctx = state.get("tool_results", {})
+                                            tx_ctx = state.get("tool_results", {})
                                             if lang == "python":
-                                                f.write(f"import json\n_ctx = {json.dumps(ctx)}\n")
+                                                f.write(f"import json\n_ctx = {json.dumps(tx_ctx)}\n")
                                             f.write(source)
                                             tmp = f.name
                                         if lang == "python":
@@ -476,11 +486,11 @@ def build_graph(
                                 else:
                                     state = {**state, **set_output(state, cid, {"status": "ok"})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
+
                             except Exception as ex:
                                 state = {**state, **set_output(state, cid, {"error": str(ex)})}
                                 state = {**state, **mark_step(state, cid, ctypes, clabel, "failed")}
 
-                        # After executing loop body, check condition
                         node_outputs = state.get("node_outputs", {})
                         if condition_cfg and not evaluate_conditions([condition_cfg], node_outputs):
                             break
@@ -491,7 +501,6 @@ def build_graph(
                 return fn
             graph.add_node(nid, make_loop_fn(nid, ntype, nlabel, nconfig))
 
-            # Route to loop_exit
             hmap = handle_edges.get(nid, {})
             if "loop_exit" in hmap:
                 graph.add_edge(nid, hmap["loop_exit"])

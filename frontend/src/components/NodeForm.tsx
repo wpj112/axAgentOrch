@@ -12,6 +12,7 @@ const defaultLoopCondition = JSON.stringify({
 
 interface NodeFormProps {
   initial?: AgentNode | null
+  allNodes?: AgentNode[]
   onSave: (node: AgentNode) => void
   onCancel: () => void
 }
@@ -83,15 +84,17 @@ function parseIfElseBranches(fieldPath: string, operator: string, branchesText: 
   return { branches, cases }
 }
 
-function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
+function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
   const [type, setType] = useState(initial?.type || 'llm')
   const [label, setLabel] = useState(initial?.label || '')
+  const [parentId, setParentId] = useState(initial?.parent_id || '')
   const [config, setConfig] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (initial) {
       setType(initial.type as AgentNode['type'])
       setLabel(initial.label || '')
+      setParentId(initial.parent_id || '')
     }
     if (initial?.config) {
       const flat: Record<string, string> = {}
@@ -128,7 +131,7 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
       delete finalConfig.start_node_id
       delete finalConfig.end_node_id
     }
-    onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: initial?.parent_id || null })
+    onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: parentId || null })
   }
 
   const setConfigField = (key: string, value: string) => {
@@ -154,6 +157,22 @@ function NodeForm({ initial, onSave, onCancel }: NodeFormProps) {
         <label style={labelStyle}>标签</label>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="节点显示名称" style={inputStyle} />
       </div>
+
+      {allNodes && allNodes.length > 1 && (
+        <div style={fieldStyle}>
+          <label style={labelStyle}>从属于 (parent_id)</label>
+          <select
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">无（独立节点）</option>
+            {allNodes.filter(n => n.id !== initial?.id && n.type === 'loop').map(n => (
+              <option key={n.id} value={n.id}>{n.label} (loop)</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {type === 'llm' && (
         <>

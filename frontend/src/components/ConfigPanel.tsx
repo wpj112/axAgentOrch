@@ -4,11 +4,12 @@ import NodeForm from './NodeForm'
 
 interface ConfigPanelProps {
   node: AgentNode | null
+  allNodes: AgentNode[]
   onSave: (node: AgentNode) => void
   onClose: () => void
 }
 
-function ConfigPanel({ node, onSave, onClose }: ConfigPanelProps) {
+function ConfigPanel({ node, allNodes, onSave, onClose }: ConfigPanelProps) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -45,6 +46,7 @@ function ConfigPanel({ node, onSave, onClose }: ConfigPanelProps) {
         <NodeForm
           key={node.id || node.label}
           initial={node}
+          allNodes={allNodes}
           onSave={(updated) => {
             onSave(updated)
             onClose()

@@ -300,6 +300,7 @@ function AgentEditor() {
 
       <ConfigPanel
         node={selectedNodeIdx === null ? null : nodes[selectedNodeIdx]}
+        allNodes={nodes}
         onSave={handleSaveNodeConfig}
         onClose={() => setSelectedNodeIdx(null)}
       />
