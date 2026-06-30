@@ -99,7 +99,7 @@ function AgentList() {
       ) : null}
 
       {view === 'card' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
           {agents.map((agent) => (
             <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} />
           ))}
