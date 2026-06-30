@@ -178,28 +178,6 @@ function FlowCanvasInner({
     if (idx >= 0) onDoubleClickNode(idx)
   }, [onDoubleClickNode])
 
-  const onEdgeDoubleClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
-    const current = edge.data?.condition || ''
-    const val = prompt('条件表达式（留空为无条件）:\n"success" / status==ok / else', current)
-    if (val === null) return
-    setRfEdges(eds => {
-      const next = eds.map(e => {
-        if (e.id === edge.id) {
-          const cond = val.trim() || null
-          return {
-            ...e,
-            label: cond || undefined,
-            style: cond ? { strokeDasharray: '5 5' } : {},
-            data: { ...e.data, condition: cond },
-          }
-        }
-        return e
-      })
-      syncToParent(rfNodesRef.current, next)
-      return next
-    })
-  }, [setRfEdges, syncToParent])
-
   const handleNodesChange: OnNodesChange = useCallback(changes => {
     onRfNodesChange(changes)
     setRfNodes(nds => {
@@ -233,7 +211,6 @@ function FlowCanvasInner({
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeDoubleClick={onNodeDoubleClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
         nodeTypes={nodeTypes}
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
