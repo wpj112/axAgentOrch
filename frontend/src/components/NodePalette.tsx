@@ -35,7 +35,7 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
           style={{
             padding: '6px 12px',
             borderRadius: 6,
-            border: `1px solid ${cfg.color}`,
+            border: '1px solid #2a3a5c',
             cursor: 'grab',
             fontSize: 13,
             textAlign: 'left',

@@ -29,7 +29,7 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
   return (
     <div
       style={{
-        border: `2px solid ${cfg.color}`,
+        border: '2px solid #2a3a5c',
         borderRadius: 8,
         padding: '10px 14px',
         marginBottom: 8,

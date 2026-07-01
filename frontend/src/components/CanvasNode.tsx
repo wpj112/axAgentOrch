@@ -34,7 +34,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
       style={{
         padding: isLoop ? '14px 16px 18px' : '10px 16px',
         borderRadius: isLoop ? 18 : 10,
-        border: `2px solid ${isActive ? '#ffd54f' : si?.color || color}`,
+        border: `2px solid ${isActive ? '#ffd54f' : si?.color || '#2a3a5c'}`,
         background: isLoop ? 'linear-gradient(180deg, #14303d 0%, #102231 100%)' : '#1e2a4a',
         minWidth: isLoop ? 280 : 120,
         minHeight: isLoop ? 180 : undefined,
@@ -46,7 +46,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         opacity: isMuted ? 0.42 : 1,
       }}
     >
-      <Handle type="target" position={Position.Top} style={{ background: isActive ? '#ffd54f' : si?.color || color }} />
+      <Handle type="target" position={Position.Top} style={{ background: isActive ? '#ffd54f' : si?.color || '#2a3a5c' }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {si && (
@@ -86,7 +86,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         </div>
       ) : null}
 
-      <Handle type="source" position={Position.Bottom} style={{ background: isActive ? '#ffd54f' : si?.color || color }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: isActive ? '#ffd54f' : si?.color || '#2a3a5c' }} />
     </div>
   )
 }

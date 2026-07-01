@@ -184,7 +184,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, borderRadius: 6,
-                border: `1px solid ${type === t ? cfg.color : '#2a3a5c'}`,
+                border: '1px solid #2a3a5c',
                 background: type === t ? cfg.color + '22' : '#0f1a30',
                 color: type === t ? cfg.color : '#b0bec5',
                 cursor: 'pointer', fontWeight: type === t ? 600 : 400,
