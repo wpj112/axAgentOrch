@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { fetchAgent, createAgent, updateAgent, exportAgent, type AgentNode } from '../api/client'
@@ -234,18 +234,8 @@ ${detail}`)
     doSave(name, description, newNodes, edges, llmModel, llmTemperature)
   }
 
-  const orderedExecutionSteps = useMemo(() => {
-    if (!executionSteps) return []
-    return [...executionSteps].sort((a, b) => {
-      const at = a.started_at ? Date.parse(a.started_at) : Number.MAX_SAFE_INTEGER
-      const bt = b.started_at ? Date.parse(b.started_at) : Number.MAX_SAFE_INTEGER
-      if (at !== bt) return at - bt
-      return (a.completed_at || '').localeCompare(b.completed_at || '')
-    })
-  }, [executionSteps])
-
-  const currentExecutionStep = orderedExecutionSteps.length > 0
-    ? [...orderedExecutionSteps].reverse().find((step) => step.status === 'running') || orderedExecutionSteps[orderedExecutionSteps.length - 1]
+  const currentExecutionStep = executionSteps && executionSteps.length > 0
+    ? [...executionSteps].reverse().find((step) => step.status === 'running') || executionSteps[executionSteps.length - 1]
     : null
 
   if (loading) return <div style={{ color: '#b0bec5' }}>加载中...</div>
@@ -391,7 +381,7 @@ ${detail}`)
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                {orderedExecutionSteps.length > 0 ? orderedExecutionSteps.map((step, idx) => (
+                {executionSteps && executionSteps.length > 0 ? executionSteps.map((step, idx) => (
                   <div key={`${step.node_id}-${idx}`} style={{
                     padding: '9px 10px', borderRadius: 8,
                     background: step.status === 'running' ? '#14263d' : '#111b2d',
