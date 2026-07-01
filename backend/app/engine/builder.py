@@ -124,6 +124,25 @@ def build_graph(
                 normalized.append(part)
         return normalized
 
+    def build_llm_messages(system_text: str, input_data: dict, tool_results: dict, node_outputs: dict) -> list[BaseMessage]:
+        user_text = str(input_data) if input_data else "Process the request."
+        context_parts = []
+        if tool_results:
+            context_parts.append("Previous tool results:")
+            for tool_name, result in tool_results.items():
+                context_parts.append(f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}")
+        if node_outputs:
+            context_parts.append("Previous node outputs:")
+            for output_node_id, value in node_outputs.items():
+                context_parts.append(f"{output_node_id}: {json.dumps(value, indent=2, ensure_ascii=False)}")
+
+        prompt_parts: list[BaseMessage] = []
+        if system_text:
+            prompt_parts.append(SystemMessage(content=system_text))
+        prompt_text = f"{'\n'.join(context_parts)}\nUser request: {user_text}" if context_parts else user_text
+        prompt_parts.append(HumanMessage(content=prompt_text))
+        return prompt_parts
+
     def resolve_if_cases(if_config: dict) -> list[dict]:
         cases = if_config.get("cases", [])
         if cases:
@@ -392,12 +411,18 @@ def build_graph(
                         if start_idx <= end_idx:
                             child_order = child_order[start_idx:end_idx + 1]
 
-                    iteration = 0
+                    executed_iterations = 0
                     for iteration in range(max_iter):
+                        if iteration > 0 and condition_cfg:
+                            node_outputs = state.get("node_outputs", {})
+                            if not evaluate_conditions([condition_cfg], node_outputs):
+                                break
+
                         step = mark_step(state, sid, stype, slabel, "running")
                         state = {**state, **step}
+                        iter_id = f"{sid}_iter{iteration}"
                         state.setdefault("execution_steps", []).append({
-                            "node_id": f"{sid}_iter{iteration}", "type": "loop_iter",
+                            "node_id": iter_id, "type": "loop_iter",
                             "label": f"Iter {iteration+1}", "status": "running",
                             "started_at": datetime.now(timezone.utc).isoformat(),
                         })
@@ -412,29 +437,14 @@ def build_graph(
 
                             try:
                                 if ctypes == "llm":
-                                    msgs = state.get("messages", [])
                                     input_data = state.get("input", {})
                                     tool_results = state.get("tool_results", {})
                                     node_outputs = state.get("node_outputs", {})
-                                    if not msgs:
-                                        user_text = str(input_data) if input_data else "Process the request."
-                                        system_text = ccfg.get("system_prompt", "")
-                                        ctx_parts = []
-                                        if tool_results:
-                                            for tn, tr in tool_results.items():
-                                                ctx_parts.append(f"{tn}: {json.dumps(tr, indent=2, ensure_ascii=False)}")
-                                        if node_outputs:
-                                            for nk, nv in node_outputs.items():
-                                                ctx_parts.append(f"{nk}: {json.dumps(nv, indent=2, ensure_ascii=False)}")
-                                        ctx_str = "\n".join(ctx_parts)
-                                        parts = []
-                                        if system_text:
-                                            parts.append(SystemMessage(content=system_text))
-                                        parts.append(HumanMessage(content=f"{ctx_str}\nUser request: {user_text}" if ctx_str else user_text))
-                                        msgs = parts
+                                    system_text = ccfg.get("system_prompt", "")
+                                    msgs = build_llm_messages(system_text, input_data, tool_results, node_outputs)
                                     resp = llm.invoke(msgs)
                                     output_content = resp.content if hasattr(resp, "content") else str(resp)
-                                    state["messages"] = state.get("messages", []) + [resp]
+                                    state["messages"] = [resp]
                                     state = {**state, **set_output(state, cid, {"text": output_content})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
 
@@ -495,12 +505,19 @@ def build_graph(
                                 state = {**state, **set_output(state, cid, {"error": str(ex)})}
                                 state = {**state, **mark_step(state, cid, ctypes, clabel, "failed")}
 
-                        node_outputs = state.get("node_outputs", {})
-                        if condition_cfg and not evaluate_conditions([condition_cfg], node_outputs):
-                            break
+                        steps = list(state.get("execution_steps", []))
+                        now = datetime.now(timezone.utc).isoformat()
+                        for s in steps:
+                            if s.get("node_id") == iter_id:
+                                s["status"] = "success"
+                                s["completed_at"] = now
+                                break
+                        state["execution_steps"] = steps
+
+                        executed_iterations += 1
 
                     s1 = mark_step(state, sid, stype, slabel, "success")
-                    s2 = set_output(state, sid, {"iterations": iteration + 1})
+                    s2 = set_output(state, sid, {"iterations": executed_iterations})
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_loop_fn(nid, ntype, nlabel, nconfig))

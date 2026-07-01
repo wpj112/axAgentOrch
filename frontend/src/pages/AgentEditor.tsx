@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { fetchAgent, createAgent, updateAgent, exportAgent, type AgentNode } from '../api/client'
@@ -20,6 +20,17 @@ interface ExecutionStep {
   status: string
   started_at?: string
   completed_at?: string
+  output?: unknown
+}
+
+function upsertExecutionStep(prev: ExecutionStep[] | null, nextStep: ExecutionStep): ExecutionStep[] {
+  const current = [...(prev || [])]
+  const existingIdx = current.findIndex((step) => step.node_id === nextStep.node_id)
+  if (existingIdx >= 0) {
+    current[existingIdx] = { ...current[existingIdx], ...nextStep }
+    return current
+  }
+  return [...current, nextStep]
 }
 
 function AgentEditor() {
@@ -42,6 +53,7 @@ function AgentEditor() {
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<{ status: string; text: string } | null>(null)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
+  const runAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!isNew && id) {
@@ -142,13 +154,17 @@ ${detail}`)
 
   const openRunDialog = () => {
     setRunDialogOpen(true)
-    setRunResult(null)
-    setExecutionSteps(null)
   }
 
   const closeRunDialog = () => {
-    if (running) return
     setRunDialogOpen(false)
+  }
+
+  const stopRun = () => {
+    runAbortRef.current?.abort()
+    runAbortRef.current = null
+    setRunning(false)
+    setRunResult({ status: 'stopped', text: '已停止运行' })
   }
 
   const doRun = async () => {
@@ -158,10 +174,14 @@ ${detail}`)
     setRunning(true)
     setExecutionSteps([])
     try {
+      runAbortRef.current?.abort()
+      const controller = new AbortController()
+      runAbortRef.current = controller
       const resp = await fetch(`/api/agents/${id}/run?mode=stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: { message: runText } }),
+        signal: controller.signal,
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const reader = resp.body?.getReader()
@@ -178,14 +198,15 @@ ${detail}`)
           if (!line.startsWith('data: ')) continue
           const evt = JSON.parse(line.slice(6))
           if (evt.event === 'step') {
-            setExecutionSteps((prev) => [...(prev || []), {
+            setExecutionSteps((prev) => upsertExecutionStep(prev, {
               node_id: evt.node_id,
               type: evt.type,
               label: evt.label,
               status: evt.status,
               started_at: evt.started_at,
               completed_at: evt.completed_at,
-            }])
+              output: evt.output,
+            }))
           } else if (evt.event === 'done') {
             setExecutionSteps((evt.steps || []) as ExecutionStep[])
             setRunResult({ status: evt.status || 'success', text: evt.result || '' })
@@ -195,8 +216,12 @@ ${detail}`)
         }
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return
+      }
       setRunResult({ status: 'failed', text: String(err) })
     } finally {
+      runAbortRef.current = null
       setRunning(false)
     }
   }
@@ -209,8 +234,18 @@ ${detail}`)
     doSave(name, description, newNodes, edges, llmModel, llmTemperature)
   }
 
-  const currentExecutionStep = executionSteps
-    ? [...executionSteps].reverse().find((step) => step.status === 'running') || executionSteps[executionSteps.length - 1]
+  const orderedExecutionSteps = useMemo(() => {
+    if (!executionSteps) return []
+    return [...executionSteps].sort((a, b) => {
+      const at = a.started_at ? Date.parse(a.started_at) : Number.MAX_SAFE_INTEGER
+      const bt = b.started_at ? Date.parse(b.started_at) : Number.MAX_SAFE_INTEGER
+      if (at !== bt) return at - bt
+      return (a.completed_at || '').localeCompare(b.completed_at || '')
+    })
+  }, [executionSteps])
+
+  const currentExecutionStep = orderedExecutionSteps.length > 0
+    ? [...orderedExecutionSteps].reverse().find((step) => step.status === 'running') || orderedExecutionSteps[orderedExecutionSteps.length - 1]
     : null
 
   if (loading) return <div style={{ color: '#b0bec5' }}>加载中...</div>
@@ -289,10 +324,10 @@ ${detail}`)
             marginTop: 12, padding: '8px 10px', borderRadius: 8,
             background: '#1e2a4a', border: '1px solid #2a3a5c', fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
           }}>
-            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 拖拽 Handle <strong style={{ color: '#b0bec5' }}>连线</strong><br />
-            🔄 循环内子节点：拖入节点 → 双击 → 「从属于」下拉选 Loop 节点<br />
-            🔀 条件分支：连线 → 双击边设 <strong style={{ color: '#b0bec5' }}>sourceHandle</strong> 匹配 case_id<br />
-            📥 <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除 · 列表页可导入导出 JSON
+            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 从节点上下链接点拖出即可<strong style={{ color: '#b0bec5' }}>连线</strong><br />
+            🔄 循环体：把节点直接拖进循环容器即可加入；拖右下角斜纹手柄可调整容器大小<br />
+            🔀 条件分支：先连线，再<strong style={{ color: '#b0bec5' }}>双击边</strong>填写 <strong style={{ color: '#b0bec5' }}>sourceHandle</strong>，并与 case_id 对应<br />
+            📥 <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除节点或边 · 列表页可导入导出 JSON
           </div>
         </div>
 
@@ -332,7 +367,7 @@ ${detail}`)
               </div>
               <button
                 onClick={closeRunDialog}
-                disabled={running}
+                disabled={false}
                 style={{
                   width: 30, height: 30, borderRadius: 8, border: '1px solid #2a3a5c', background: 'transparent', color: '#b0bec5',
                   cursor: running ? 'not-allowed' : 'pointer', fontSize: 16,
@@ -356,16 +391,26 @@ ${detail}`)
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                {executionSteps && executionSteps.length > 0 ? executionSteps.map((step, idx) => (
+                {orderedExecutionSteps.length > 0 ? orderedExecutionSteps.map((step, idx) => (
                   <div key={`${step.node_id}-${idx}`} style={{
-                    display: 'grid', gridTemplateColumns: '64px 84px 1fr', gap: 8, alignItems: 'center',
                     padding: '9px 10px', borderRadius: 8,
                     background: step.status === 'running' ? '#14263d' : '#111b2d',
                     border: `1px solid ${step.status === 'running' ? '#1565c0' : '#243656'}`,
                   }}>
-                    <span style={{ fontSize: 12, color: step.status === 'success' ? '#81c784' : step.status === 'failed' ? '#ef9a9a' : '#90caf9' }}>{step.status}</span>
-                    <span style={{ fontSize: 12, color: '#6a7a8a' }}>{step.type || '-'}</span>
-                    <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.node_id}</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '64px 84px 1fr', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: step.status === 'success' ? '#81c784' : step.status === 'failed' ? '#ef9a9a' : '#90caf9' }}>{step.status}</span>
+                      <span style={{ fontSize: 12, color: '#6a7a8a' }}>{step.type || '-'}</span>
+                      <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.node_id}</span>
+                    </div>
+                    {step.output !== undefined && step.output !== null && (
+                      <pre style={{
+                        margin: '8px 0 0', padding: '8px 10px', borderRadius: 6,
+                        background: 'rgba(6, 15, 28, 0.72)', border: '1px solid #223452',
+                        fontSize: 11, color: '#9fb4c7', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 180, overflow: 'auto',
+                      }}>
+                        {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
+                      </pre>
+                    )}
                   </div>
                 )) : (
                   <div style={{ padding: '12px 10px', borderRadius: 8, background: '#0f1a30', border: '1px dashed #223452', fontSize: 12, color: '#6a7a8a' }}>
@@ -400,16 +445,16 @@ ${detail}`)
                 disabled={isNew}
               />
               <button
-                onClick={doRun}
-                disabled={running || isNew || !runText.trim()}
+                onClick={running ? stopRun : doRun}
+                disabled={isNew || (!running && !runText.trim())}
                 style={{
                   height: 36, padding: '0 16px', fontSize: 13, border: '1px solid #4caf50', borderRadius: 8,
-                  cursor: running || isNew || !runText.trim() ? 'not-allowed' : 'pointer',
-                  background: '#1b3a1e', color: '#81c784', opacity: running || isNew || !runText.trim() ? 0.5 : 1,
+                  cursor: isNew || (!running && !runText.trim()) ? 'not-allowed' : 'pointer',
+                  background: running ? '#3a1b1b' : '#1b3a1e', color: running ? '#ef9a9a' : '#81c784', opacity: isNew || (!running && !runText.trim()) ? 0.5 : 1,
                   whiteSpace: 'nowrap',
                 }}
               >
-                {running ? '...' : '发送'}
+                {running ? '停止' : '发送'}
               </button>
             </div>
           </div>

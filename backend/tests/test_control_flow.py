@@ -260,3 +260,115 @@ def test_code_node_python_ctx_handles_json_nulls():
 
     code_output = result['node_outputs'][str(code.id)]['result']
     assert '"details": null' in code_output
+
+
+def test_loop_stops_before_next_iteration_when_previous_output_fails_condition():
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 3,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('1.0')",
+    }, parent_id=loop.id)
+    loop.config['condition'] = {
+        'variable_selector': [str(score.id), 'result'],
+        'operator': 'lt',
+        'value': 0.8,
+    }
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, end],
+        [
+            make_edge(start, loop),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    iteration_steps = [
+        step for step in result['execution_steps']
+        if step.get('type') == 'loop_iter'
+    ]
+    assert len(iteration_steps) == 1
+    assert result['node_outputs'][str(loop.id)]['iterations'] == 1
+    assert result['node_outputs'][str(score.id)]['result'] == '1.0'
+
+
+def test_loop_llm_rebuilds_prompt_each_iteration(monkeypatch):
+    import app.engine.builder as builder_module
+
+    captured_messages = []
+
+    class FakeChatOpenAI:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def invoke(self, messages):
+            captured_messages.append(messages)
+            return SimpleNamespace(content='0.5')
+
+    monkeypatch.setattr(builder_module, 'ChatOpenAI', FakeChatOpenAI)
+
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 2,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('0.5')",
+    }, parent_id=loop.id)
+    llm = make_node('llm', 'Judge', {
+        'system_prompt': 'Return the score only.',
+    }, parent_id=loop.id)
+    loop.config['condition'] = {
+        'variable_selector': [str(score.id), 'result'],
+        'operator': 'lt',
+        'value': 0.8,
+    }
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, llm, end],
+        [
+            make_edge(start, loop),
+            make_edge(score, llm),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    graph.invoke({
+        'messages': [],
+        'input': {'message': 'judge'},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    assert len(captured_messages) == 2
+    for prompt_messages in captured_messages:
+        assert len(prompt_messages) == 2
+        assert prompt_messages[0].content == 'Return the score only.'
+        assert 'Previous node outputs:' in prompt_messages[1].content
+        assert 'User request:' in prompt_messages[1].content
+    assert '0.5' in captured_messages[1][1].content

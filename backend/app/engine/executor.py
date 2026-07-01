@@ -122,10 +122,23 @@ async def run_agent_stream(
                 if steps != last_steps:
                     new_steps = [s for s in steps if s not in last_steps]
                     last_steps = steps
+                    node_outputs = state.get("node_outputs", {}) or {}
                     for step in new_steps:
-                        yield f"data: {json.dumps({'event': 'step', **step}, ensure_ascii=False)}\n\n"
+                        step_node_id = step.get("node_id")
+                        step_payload = {'event': 'step', **step}
+                        if step_node_id in node_outputs:
+                            step_payload['output'] = node_outputs.get(step_node_id)
+                        yield f"data: {json.dumps(step_payload, ensure_ascii=False)}\n\n"
 
-        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': last_steps, 'result': final_result}, ensure_ascii=False)}\n\n"
+        final_outputs = []
+        node_outputs = state.get("node_outputs", {}) or {}
+        for step in last_steps:
+            step_payload = dict(step)
+            step_node_id = step.get("node_id")
+            if step_node_id in node_outputs:
+                step_payload['output'] = node_outputs.get(step_node_id)
+            final_outputs.append(step_payload)
+        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': final_outputs, 'result': final_result}, ensure_ascii=False)}\n\n"
 
     except Exception as e:
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"

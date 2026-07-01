@@ -1,16 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { AgentNode } from '../api/client'
 import JsonEditor from './JsonEditor'
 import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 const defaultIfElseBranches = `weather = weather
 chat = chat`
-
-const defaultLoopCondition = JSON.stringify({
-  variable_selector: ['node_id', 'field'],
-  operator: 'lt',
-  value: 0.8,
-}, null, 2)
 
 interface NodeFormProps {
   initial?: AgentNode | null
@@ -26,6 +20,7 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
+
 function selectorToPath(selector: unknown): string {
   if (Array.isArray(selector)) return selector.map(String).join('.')
   return typeof selector === 'string' ? selector : 'text'
@@ -58,19 +53,26 @@ function deriveIfElseFields(config: Record<string, string>): Record<string, stri
 
 function deriveLoopFields(config: Record<string, string>): Record<string, string> {
   const next = { ...config }
-  if (!next.condition_json) {
-    const rawCondition = next.condition
-    if (rawCondition) {
-      try {
-        const parsed = JSON.parse(rawCondition)
-        next.condition_json = JSON.stringify(parsed, null, 2)
-      } catch {
-        next.condition_json = rawCondition
-      }
-    } else {
-      next.condition_json = defaultLoopCondition
+  let parsedCondition: Record<string, unknown> = {}
+
+  const rawCondition = next.condition
+  if (rawCondition) {
+    try {
+      parsedCondition = JSON.parse(rawCondition)
+    } catch {
+      parsedCondition = {}
     }
   }
+
+  const selector = Array.isArray(parsedCondition.variable_selector)
+    ? parsedCondition.variable_selector.map(String)
+    : []
+
+  next.loop_condition_node_id = selector[0] || ''
+  next.loop_condition_field = selector.slice(1).join('.') || ''
+  next.loop_condition_operator = String(parsedCondition.operator || 'lt')
+  next.loop_condition_value = parsedCondition.operator === 'not_empty' ? '' : String(parsedCondition.value ?? '')
+
   if (!next.max_iterations) next.max_iterations = '5'
   if (!next.start_node_id) next.start_node_id = ''
   if (!next.end_node_id) next.end_node_id = ''
@@ -149,13 +151,29 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
       delete finalConfig.cases_json
     }
     if (type === 'loop') {
-      let parsedCondition: Record<string, unknown> = {}
-      try { parsedCondition = JSON.parse(config.condition_json || '{}') } catch { parsedCondition = {} }
-      finalConfig.condition = parsedCondition
+      const conditionNodeId = (config.loop_condition_node_id || '').trim()
+      const conditionField = (config.loop_condition_field || '').trim()
+      const conditionOperator = config.loop_condition_operator || 'lt'
+      const conditionValue = (config.loop_condition_value || '').trim()
+      const selector = [conditionNodeId, ...conditionField.split('.').map((part) => part.trim()).filter(Boolean)].filter(Boolean)
+
+      if (selector.length > 0) {
+        finalConfig.condition = {
+          variable_selector: selector,
+          operator: conditionOperator,
+          ...(conditionOperator === 'not_empty' ? {} : { value: conditionValue }),
+        }
+      } else {
+        finalConfig.condition = {}
+      }
+
       finalConfig.max_iterations = parseInt(config.max_iterations || '5', 10)
       finalConfig.start_node_id = config.start_node_id || ''
       finalConfig.end_node_id = config.end_node_id || ''
-      delete finalConfig.condition_json
+      delete finalConfig.loop_condition_node_id
+      delete finalConfig.loop_condition_field
+      delete finalConfig.loop_condition_operator
+      delete finalConfig.loop_condition_value
     }
     onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: parentId || null })
   }
@@ -167,6 +185,8 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
   const loopChildren = type === 'loop' && initial?.id && allNodes
     ? allNodes.filter((node) => node.parent_id === initial.id)
     : []
+
+  const loopConditionNodes = loopChildren.filter((node) => node.id)
 
   return (
     <div style={{ padding: 20, minWidth: 340, color: '#e0e0e0' }}>
@@ -337,8 +357,59 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
             <input value={config.max_iterations || '5'} onChange={(e) => setConfigField('max_iterations', e.target.value)} style={inputStyle} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Condition (JSON)</label>
-            <textarea value={config.condition_json || defaultLoopCondition} onChange={(e) => setConfigField('condition_json', e.target.value)} rows={5} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
+            <label style={labelStyle}>继续条件</label>
+            <select
+              value={config.loop_condition_node_id || ''}
+              onChange={(e) => setConfigField('loop_condition_node_id', e.target.value)}
+              style={inputStyle}
+              disabled={!loopConditionNodes.length}
+            >
+              <option value="">未设置（仅按最大轮次结束）</option>
+              {loopConditionNodes.map((node) => (
+                <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
+              ))}
+            </select>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>判断字段</label>
+            <input
+              value={config.loop_condition_field || ''}
+              onChange={(e) => setConfigField('loop_condition_field', e.target.value)}
+              placeholder="text / result / score / data.intent"
+              style={inputStyle}
+              disabled={!config.loop_condition_node_id}
+            />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>操作符</label>
+            <select
+              value={config.loop_condition_operator || 'lt'}
+              onChange={(e) => setConfigField('loop_condition_operator', e.target.value)}
+              style={inputStyle}
+              disabled={!config.loop_condition_node_id}
+            >
+              <option value="is">等于</option>
+              <option value="not_empty">非空</option>
+              <option value="lt">小于</option>
+              <option value="gte">大于等于</option>
+            </select>
+          </div>
+          {config.loop_condition_operator !== 'not_empty' && (
+            <div style={fieldStyle}>
+              <label style={labelStyle}>比较值</label>
+              <input
+                value={config.loop_condition_value || ''}
+                onChange={(e) => setConfigField('loop_condition_value', e.target.value)}
+                placeholder="例如 3 / done / 0.8"
+                style={inputStyle}
+                disabled={!config.loop_condition_node_id}
+              />
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
+            {config.loop_condition_node_id
+              ? `当前会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
+              : '先选择循环体里的一个节点作为判断来源，再填写它输出里的字段名。'}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>循环体起点</label>
@@ -360,8 +431,8 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
           </div>
           <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4, lineHeight: 1.6 }}>
             {loopChildren.length
-              ? `当前循环体里有 ${loopChildren.length} 个节点。选中 loop 时，画布会高亮这组节点。`
-              : '先把节点加入这个 loop 容器，起点/终点下拉里才会出现可选项。'}
+              ? `当前循环体里有 ${loopChildren.length} 个节点。条件来源、起点和终点都可以直接从这些节点里选择。`
+              : '先把节点加入这个 loop 容器，条件来源、起点/终点下拉里才会出现可选项。'}
           </div>
           <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 8 }}>
             loop 连到外部结束节点的边请命名为 `loop_exit`。
