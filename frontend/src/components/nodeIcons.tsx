@@ -27,8 +27,9 @@ export function NodeIcon({ type, size = 14, color }: NodeIconProps) {
       )
     case 'llm':
       return (
-        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke={c} strokeWidth="1.3">
-          <path d="M8 1.5l1.8 5.5 5.7.5-4.3 3.8 1.3 5.7L8 12.8l-4.5 2.7 1.3-5.7L.5 7.5l5.7-.5L8 1.5z" />
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke={c} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 2.5c-2 0-3 1-3 2.5 0 1.5 1 2.5 2 3 0 1 .2 1.5-.5 2C5.5 11 4 10.5 3.5 9.5c-.5-1-1.5-2-2.5-1.5s-1 2 0 3c1 1 2 2 3.5 2.5s3 .5 3.5 1 .5 1 .5 1" />
+          <path d="M8 2.5c2 0 3 1 3 2.5 0 1.5-1 2.5-2 3 0 1-.2 1.5.5 2C10.5 11 12 10.5 12.5 9.5c.5-1 1.5-2 2.5-1.5s1 2 0 3c-1 1-2 2-3.5 2.5s-3 .5-3.5 1-.5 1-.5 1" />
         </svg>
       )
     case 'http':

@@ -60,17 +60,14 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         )}
         <span
           style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             background: isActive ? '#ffd54f' : color,
             color: isActive ? '#0f172a' : '#fff',
-            padding: '2px 8px',
-            borderRadius: 10,
-            fontSize: 11,
-            fontWeight: 600,
+            width: 22, height: 22,
+            borderRadius: 6,
           }}
         >
-          <NodeIcon type={nodeType} size={12} color="#fff" />
-          {cfg.label}
+          <NodeIcon type={nodeType} size={13} color="#fff" />
         </span>
         <span style={{ fontWeight: 600 }}>{data.label}</span>
       </div>

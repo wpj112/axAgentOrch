@@ -38,14 +38,14 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
             border: `1px solid ${cfg.color}`,
             cursor: 'grab',
             fontSize: 13,
-            textAlign: 'center',
+            textAlign: 'left',
             background: '#0f1a30',
             color: '#e0e0e0',
             userSelect: 'none',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
           }}
         >
           <NodeIcon type={type} size={14} color={cfg.color} />
