@@ -22,6 +22,7 @@ export interface CanvasNodeData {
 
 function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
   const [resizing, setResizing] = useState(false)
+  const [hover, setHover] = useState(false)
   const nodeType = data.type || 'start'
   const cfg = NODE_CONFIG[nodeType] || { label: nodeType, color: '#999' }
   const color = cfg.color
@@ -33,6 +34,8 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
 
   return (
     <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         padding: isLoop ? '10px 12px 14px' : '6px 10px',
         borderRadius: isLoop ? 18 : 10,
@@ -78,27 +81,28 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         <div style={{ position: 'relative', marginTop: 6 }}>
           <div style={{ fontSize: 10, color: '#b7d7e5', lineHeight: 1.5 }}>
             <div>{data.loopSummary || '循环容器'}</div>
-            <div>节点: {data.childCount || 0}</div>
+            <div>{!data.childCount ? '暂无节点 — 拖入节点或从右侧加入循环体' : null}</div>
           </div>
           {resizing && <NodeResizer minWidth={160} minHeight={120} onResizeEnd={() => setResizing(false)} />}
-          <button
+          <div
             onClick={() => setResizing((v) => !v)}
             style={{
-              position: 'absolute', bottom: -6, right: -2,
-              width: 16, height: 16, padding: 0,
-              border: 'none', borderRadius: 3,
-              background: 'transparent',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#6a7a8a', opacity: resizing ? 0.5 : 0.6,
+              position: 'absolute', bottom: 2, right: 2,
+              width: 14, height: 14, borderRadius: 2,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: resizing ? '1px solid #6a7a8a' : '1px solid transparent',
+              color: '#6a7a8a',
+              opacity: resizing || hover ? 0.6 : 0,
+              transition: 'opacity 0.15s',
             }}
             title="调整大小"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
-              <line x1="5.5" y1="9.5" x2="9.5" y2="9.5" />
-              <line x1="5.5" y1="6.5" x2="9.5" y2="6.5" />
-              <line x1="5.5" y1="3.5" x2="9.5" y2="3.5" />
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round">
+              <line x1="4" y1="9.5" x2="9.5" y2="9.5" />
+              <line x1="4" y1="6" x2="9.5" y2="6" />
             </svg>
-          </button>
+          </div>
         </div>
       ) : data.parentLabel ? (
         <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#90caf9' }}>
