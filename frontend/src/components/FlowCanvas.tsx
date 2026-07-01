@@ -19,7 +19,7 @@ import ReactFlow, {
 import dagre from 'dagre'
 import type { AgentNode } from '../api/client'
 import CanvasNode from './CanvasNode'
-import NodePalette from './NodePalette'
+
 
 const nodeTypes = { custom: CanvasNode }
 const LOOP_DEFAULT_WIDTH = 340
@@ -466,8 +466,6 @@ function FlowCanvasInner({
           return colorMap[n.data?.type] || '#999'
         }} style={{ background: '#1a1d29' }} />
       </ReactFlow>
-
-      <NodePalette />
 
       <button
         onClick={handleAutoLayout}
