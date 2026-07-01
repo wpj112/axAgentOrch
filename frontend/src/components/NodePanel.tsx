@@ -45,7 +45,7 @@ function NodePanel({ nodes, edges, onNodesChange, onEdgesChange, onAddNode, onEd
           style={{
             padding: '6px 16px',
             fontSize: 13,
-            background: '#1976d2',
+            background: '#3b82f6',
             color: '#fff',
             border: 'none',
             borderRadius: 6,

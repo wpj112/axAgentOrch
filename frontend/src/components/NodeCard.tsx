@@ -29,7 +29,7 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
   return (
     <div
       style={{
-        border: '2px solid #2a3a5c',
+        border: '2px solid #2e3345',
         borderRadius: 8,
         padding: '10px 14px',
         marginBottom: 8,
@@ -64,7 +64,7 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
           </button>
           <button
             onClick={() => addConnection()}
-            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid #1976d2', borderRadius: 4, cursor: 'pointer', background: '#e3f2fd', color: '#1976d2' }}
+            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid #3b82f6', borderRadius: 4, cursor: 'pointer', background: '#e3f2fd', color: '#3b82f6' }}
           >
             → 连线
           </button>

@@ -11,13 +11,13 @@ interface AgentFormProps {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid #2a3a5c', borderRadius: 6, boxSizing: 'border-box',
-  background: '#0f1a30', color: '#e0e0e0',
+  border: '1px solid #2e3345', borderRadius: 6, boxSizing: 'border-box',
+  background: '#252836', color: '#e0e0e0',
 }
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4,
-  color: '#b0bec5',
+  color: '#9ca3af',
 }
 
 function AgentForm({ name, description, llmModel, llmTemperature, onChangeName, onChangeDescription, onChangeLlmModel, onChangeLlmTemperature }: AgentFormProps) {
@@ -32,8 +32,8 @@ function AgentForm({ name, description, llmModel, llmTemperature, onChangeName, 
         <textarea value={description} onChange={(e) => onChangeDescription(e.target.value)} placeholder="智能体描述（可选）" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
       </div>
 
-      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #2a3a5c' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#6a7a8a', marginBottom: 10 }}>LLM 覆盖（可选，留空使用全局设置）</div>
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #2e3345' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#8b8fa3', marginBottom: 10 }}>LLM 覆盖（可选，留空使用全局设置）</div>
 
         <div style={{ marginBottom: 10 }}>
           <label style={labelStyle}>Model</label>

@@ -238,24 +238,24 @@ ${detail}`)
     ? [...executionSteps].reverse().find((step) => step.status === 'running') || executionSteps[executionSteps.length - 1]
     : null
 
-  if (loading) return <div style={{ color: '#b0bec5' }}>加载中...</div>
+  if (loading) return <div style={{ color: '#9ca3af' }}>加载中...</div>
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <a href="/" style={{ color: '#90caf9', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
+        <a href="/" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#e0e0e0' }}>
           {isNew ? '新建智能体' : `编辑: ${name}`}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          {saved && <span style={{ color: '#81c784', fontSize: 12 }}>✓ 已保存</span>}
+          {saved && <span style={{ color: '#22c55e', fontSize: 12 }}>✓ 已保存</span>}
           {saving && <span style={{ color: '#ffb74d', fontSize: 12 }}>保存中...</span>}
           <button
             onClick={openRunDialog}
             disabled={isNew}
             style={{
-              padding: '8px 16px', fontSize: 13, border: '1px solid #4caf50', borderRadius: 6,
-              cursor: isNew ? 'not-allowed' : 'pointer', background: '#16301d', color: '#81c784', opacity: isNew ? 0.5 : 1,
+              padding: '8px 16px', fontSize: 13, border: '1px solid #22c55e', borderRadius: 6,
+              cursor: isNew ? 'not-allowed' : 'pointer', background: '#16301d', color: '#22c55e', opacity: isNew ? 0.5 : 1,
             }}
           >
             运行
@@ -278,8 +278,8 @@ ${detail}`)
             }}
             disabled={isNew || !id}
             style={{
-              padding: '8px 14px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 6,
-              cursor: (isNew || !id) ? 'not-allowed' : 'pointer', background: '#1e2a4a', color: '#b0bec5', opacity: (isNew || !id) ? 0.5 : 1,
+              padding: '8px 14px', fontSize: 13, border: '1px solid #2e3345', borderRadius: 6,
+              cursor: (isNew || !id) ? 'not-allowed' : 'pointer', background: '#1a1d29', color: '#9ca3af', opacity: (isNew || !id) ? 0.5 : 1,
             }}
           >
             导出
@@ -289,7 +289,7 @@ ${detail}`)
             disabled={saving}
             style={{
               padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer', background: '#1565c0', color: '#fff', opacity: saving ? 0.6 : 1,
+              cursor: saving ? 'not-allowed' : 'pointer', background: '#3b82f6', color: '#fff', opacity: saving ? 0.6 : 1,
             }}
           >
             保存
@@ -312,12 +312,12 @@ ${detail}`)
 
           <div style={{
             marginTop: 12, padding: '8px 10px', borderRadius: 8,
-            background: '#1e2a4a', border: '1px solid #2a3a5c', fontSize: 11, color: '#6a7a8a', lineHeight: 1.8,
+            background: '#1a1d29', border: '1px solid #2e3345', fontSize: 11, color: '#8b8fa3', lineHeight: 1.8,
           }}>
-            💡 <strong style={{ color: '#b0bec5' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#b0bec5' }}>双击</strong>节点编辑 · 从节点上下链接点拖出即可<strong style={{ color: '#b0bec5' }}>连线</strong><br />
+            💡 <strong style={{ color: '#9ca3af' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#9ca3af' }}>双击</strong>节点编辑 · 从节点上下链接点拖出即可<strong style={{ color: '#9ca3af' }}>连线</strong><br />
             🔄 循环体：把节点直接拖进循环容器即可加入；拖右下角斜纹手柄可调整容器大小<br />
-            🔀 条件分支：先连线，再<strong style={{ color: '#b0bec5' }}>双击边</strong>填写 <strong style={{ color: '#b0bec5' }}>sourceHandle</strong>，并与 case_id 对应<br />
-            📥 <strong style={{ color: '#b0bec5' }}>滚轮</strong>缩放 · <strong style={{ color: '#b0bec5' }}>Delete</strong> 删除节点或边 · 列表页可导入导出 JSON
+            🔀 条件分支：先连线，再<strong style={{ color: '#9ca3af' }}>双击边</strong>填写 <strong style={{ color: '#9ca3af' }}>sourceHandle</strong>，并与 case_id 对应<br />
+            📥 <strong style={{ color: '#9ca3af' }}>滚轮</strong>缩放 · <strong style={{ color: '#9ca3af' }}>Delete</strong> 删除节点或边 · 列表页可导入导出 JSON
           </div>
         </div>
 
@@ -342,12 +342,12 @@ ${detail}`)
           />
           <div style={{
             position: 'fixed', right: 24, top: 24, width: 420, height: 'calc(100vh - 48px)',
-            background: '#101a2b', border: '1px solid #2a3a5c', borderRadius: 14, boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
+            background: '#101a2b', border: '1px solid #2e3345', borderRadius: 14, boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
             zIndex: 130, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr) auto', overflow: 'hidden',
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px',
-              borderBottom: '1px solid #223452', background: '#142238',
+              borderBottom: '1px solid #2e3345', background: '#142238',
             }}>
               <div>
                 <div style={{ color: '#e0e0e0', fontSize: 14, fontWeight: 700 }}>运行调试</div>
@@ -359,7 +359,7 @@ ${detail}`)
                 onClick={closeRunDialog}
                 disabled={false}
                 style={{
-                  width: 30, height: 30, borderRadius: 8, border: '1px solid #2a3a5c', background: 'transparent', color: '#b0bec5',
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid #2e3345', background: 'transparent', color: '#9ca3af',
                   cursor: running ? 'not-allowed' : 'pointer', fontSize: 16,
                 }}
               >
@@ -370,9 +370,9 @@ ${detail}`)
             <div style={{ padding: 14, overflow: 'auto', display: 'grid', gap: 10, alignContent: 'start' }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
-                background: '#0f1a30', border: '1px solid #223452',
+                background: '#252836', border: '1px solid #2e3345',
               }}>
-                <span style={{ color: running ? '#90caf9' : runResult?.status === 'success' ? '#81c784' : runResult?.status === 'failed' ? '#ef9a9a' : '#6a7a8a', fontSize: 14 }}>
+                <span style={{ color: running ? '#60a5fa' : runResult?.status === 'success' ? '#22c55e' : runResult?.status === 'failed' ? '#ef9a9a' : '#8b8fa3', fontSize: 14 }}>
                   {running ? '⏳' : runResult?.status === 'success' ? '✓' : runResult?.status === 'failed' ? '✗' : '○'}
                 </span>
                 <span style={{ color: '#d7e3ec', fontSize: 13, fontWeight: 600 }}>
@@ -385,17 +385,17 @@ ${detail}`)
                   <div key={`${step.node_id}-${idx}`} style={{
                     padding: '9px 10px', borderRadius: 8,
                     background: step.status === 'running' ? '#14263d' : '#111b2d',
-                    border: `1px solid ${step.status === 'running' ? '#1565c0' : '#243656'}`,
+                    border: `1px solid ${step.status === 'running' ? '#3b82f6' : '#243656'}`,
                   }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '64px 84px 1fr', gap: 8, alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: step.status === 'success' ? '#81c784' : step.status === 'failed' ? '#ef9a9a' : '#90caf9' }}>{step.status}</span>
-                      <span style={{ fontSize: 12, color: '#6a7a8a' }}>{step.type || '-'}</span>
+                      <span style={{ fontSize: 12, color: step.status === 'success' ? '#22c55e' : step.status === 'failed' ? '#ef9a9a' : '#60a5fa' }}>{step.status}</span>
+                      <span style={{ fontSize: 12, color: '#8b8fa3' }}>{step.type || '-'}</span>
                       <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.node_id}</span>
                     </div>
                     {step.output !== undefined && step.output !== null && (
                       <pre style={{
                         margin: '8px 0 0', padding: '8px 10px', borderRadius: 6,
-                        background: 'rgba(6, 15, 28, 0.72)', border: '1px solid #223452',
+                        background: 'rgba(6, 15, 28, 0.72)', border: '1px solid #2e3345',
                         fontSize: 11, color: '#9fb4c7', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 180, overflow: 'auto',
                       }}>
                         {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
@@ -403,21 +403,21 @@ ${detail}`)
                     )}
                   </div>
                 )) : (
-                  <div style={{ padding: '12px 10px', borderRadius: 8, background: '#0f1a30', border: '1px dashed #223452', fontSize: 12, color: '#6a7a8a' }}>
+                  <div style={{ padding: '12px 10px', borderRadius: 8, background: '#252836', border: '1px dashed #2e3345', fontSize: 12, color: '#8b8fa3' }}>
                     运行后，这里会按顺序显示执行流程。
                   </div>
                 )}
               </div>
 
-              <div style={{ padding: '12px 10px', borderRadius: 8, background: '#0f1a30', border: '1px solid #223452' }}>
-                <div style={{ color: '#b0bec5', fontSize: 12, marginBottom: 8 }}>结果输出</div>
-                <pre style={{ margin: 0, fontSize: 12, color: '#b0bec5', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflow: 'auto' }}>
+              <div style={{ padding: '12px 10px', borderRadius: 8, background: '#252836', border: '1px solid #2e3345' }}>
+                <div style={{ color: '#9ca3af', fontSize: 12, marginBottom: 8 }}>结果输出</div>
+                <pre style={{ margin: 0, fontSize: 12, color: '#9ca3af', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflow: 'auto' }}>
                   {runResult?.text || '暂无输出'}
                 </pre>
               </div>
             </div>
 
-            <div style={{ padding: '10px 14px', borderTop: '1px solid #223452', background: '#142238', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #2e3345', background: '#142238', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 value={runText}
                 onChange={(e) => setRunText(e.target.value)}
@@ -429,8 +429,8 @@ ${detail}`)
                 }}
                 placeholder="输入消息，按 Enter 发送"
                 style={{
-                  flex: 1, height: 36, padding: '0 12px', fontSize: 13, border: '1px solid #2a3a5c', borderRadius: 8,
-                  background: '#0f1a30', color: '#e0e0e0', outline: 'none',
+                  flex: 1, height: 36, padding: '0 12px', fontSize: 13, border: '1px solid #2e3345', borderRadius: 8,
+                  background: '#252836', color: '#e0e0e0', outline: 'none',
                 }}
                 disabled={isNew}
               />
@@ -438,9 +438,9 @@ ${detail}`)
                 onClick={running ? stopRun : doRun}
                 disabled={isNew || (!running && !runText.trim())}
                 style={{
-                  height: 36, padding: '0 16px', fontSize: 13, border: '1px solid #4caf50', borderRadius: 8,
+                  height: 36, padding: '0 16px', fontSize: 13, border: '1px solid #22c55e', borderRadius: 8,
                   cursor: isNew || (!running && !runText.trim()) ? 'not-allowed' : 'pointer',
-                  background: running ? '#3a1b1b' : '#1b3a1e', color: running ? '#ef9a9a' : '#81c784', opacity: isNew || (!running && !runText.trim()) ? 0.5 : 1,
+                  background: running ? '#3a1b1b' : '#1b3a1e', color: running ? '#ef9a9a' : '#22c55e', opacity: isNew || (!running && !runText.trim()) ? 0.5 : 1,
                   whiteSpace: 'nowrap',
                 }}
               >

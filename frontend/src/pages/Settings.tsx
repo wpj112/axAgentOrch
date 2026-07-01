@@ -3,19 +3,19 @@ import { fetchSettings, updateSettings, type AppSettings } from '../api/client'
 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid #2a3a5c', borderRadius: 6, boxSizing: 'border-box',
-  background: '#0f1a30', color: '#e0e0e0',
+  border: '1px solid #2e3345', borderRadius: 6, boxSizing: 'border-box',
+  background: '#252836', color: '#e0e0e0',
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid #2a3a5c', borderRadius: 6, boxSizing: 'border-box',
-  background: '#0f1a30', color: '#e0e0e0',
+  border: '1px solid #2e3345', borderRadius: 6, boxSizing: 'border-box',
+  background: '#252836', color: '#e0e0e0',
 }
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4,
-  color: '#b0bec5',
+  color: '#9ca3af',
 }
 
 const fieldStyle: React.CSSProperties = { marginBottom: 16 }
@@ -73,16 +73,16 @@ function Settings() {
     }
   }
 
-  if (loading) return <div style={{ color: '#b0bec5' }}>加载中...</div>
+  if (loading) return <div style={{ color: '#9ca3af' }}>加载中...</div>
 
   return (
     <div style={{ maxWidth: 520, color: '#e0e0e0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <a href="/" style={{ color: '#90caf9', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
+        <a href="/" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
         <span style={{ fontSize: 18, fontWeight: 600 }}>全局设置</span>
       </div>
 
-      <div style={{ background: '#1e2a4a', border: '1px solid #2a3a5c', borderRadius: 10, padding: 24 }}>
+      <div style={{ background: '#1a1d29', border: '1px solid #2e3345', borderRadius: 10, padding: 24 }}>
         <div style={fieldStyle}>
           <label style={labelStyle}>提供商</label>
           <select
@@ -158,13 +158,13 @@ function Settings() {
             disabled={saving}
             style={{
               padding: '8px 24px', fontSize: 14, border: 'none', borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer', background: '#1565c0', color: '#fff',
+              cursor: saving ? 'not-allowed' : 'pointer', background: '#3b82f6', color: '#fff',
               opacity: saving ? 0.6 : 1,
             }}
           >
             {saving ? '保存中...' : '保存'}
           </button>
-          {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? '#81c784' : '#ef9a9a' }}>{msg}</span>}
+          {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? '#22c55e' : '#ef9a9a' }}>{msg}</span>}
         </div>
       </div>
     </div>

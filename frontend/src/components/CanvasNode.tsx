@@ -8,10 +8,10 @@ import {
 import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 const STATUS_ICONS: Record<string, { text: string; color: string }> = {
-  running: { text: '⏳', color: '#90caf9' },
-  success: { text: '✓', color: '#81c784' },
+  running: { text: '⏳', color: '#60a5fa' },
+  success: { text: '✓', color: '#22c55e' },
   failed: { text: '✗', color: '#ef9a9a' },
-  pending: { text: '○', color: '#6a7a8a' },
+  pending: { text: '○', color: '#8b8fa3' },
 }
 
 export interface CanvasNodeData {
@@ -51,7 +51,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
   const isActive = data.activeState === 'active'
   const isMuted = data.activeState === 'muted'
   const isEmptyLoop = isLoop && !data.childCount
-  const flowHandleColor = isActive ? '#ffd54f' : si?.color || '#2a3a5c'
+  const flowHandleColor = isActive ? '#ffd54f' : si?.color || '#2e3345'
 
   return (
     <div
@@ -63,7 +63,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         padding: isLoop ? '10px 12px 14px' : '6px 10px',
         borderRadius: isLoop ? 18 : 10,
         border: `2px solid ${flowHandleColor}`,
-        background: isLoop ? 'linear-gradient(180deg, #14303d 0%, #102231 100%)' : '#1e2a4a',
+        background: isLoop ? 'linear-gradient(180deg, #14303d 0%, #102231 100%)' : '#1a1d29',
         minWidth: isLoop ? 160 : 70,
         minHeight: isLoop ? 120 : undefined,
         boxShadow: isActive ? '0 0 0 2px rgba(255,213,79,0.2), 0 10px 24px rgba(0,0,0,0.45)' : '0 2px 6px rgba(0,0,0,0.4)',
@@ -138,7 +138,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
           ) : null}
         </div>
       ) : data.parentLabel ? (
-        <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#90caf9' }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#60a5fa' }}>
           属于循环体: {data.parentLabel}
         </div>
       ) : null}

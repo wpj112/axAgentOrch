@@ -12,7 +12,7 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
         top: 10,
         left: 10,
         zIndex: 10,
-        background: '#1e2a4a',
+        background: '#1a1d29',
         borderRadius: 8,
         padding: '6px 8px',
         boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
@@ -22,7 +22,7 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
         minWidth: 72,
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#90caf9', marginBottom: 2 }}>节点类型</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', marginBottom: 2 }}>节点类型</div>
       {Object.entries(NODE_CONFIG).map(([type, cfg]) => (
         <div
           key={type}
@@ -35,11 +35,11 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
           style={{
             padding: '4px 8px',
             borderRadius: 5,
-            border: '1px solid #2a3a5c',
+            border: '1px solid #2e3345',
             cursor: 'grab',
             fontSize: 12,
             textAlign: 'left',
-            background: '#0f1a30',
+            background: '#252836',
             color: '#e0e0e0',
             userSelect: 'none',
             display: 'flex',

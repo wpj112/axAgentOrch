@@ -20,9 +20,9 @@ function BrandMark({ size = 32 }: BrandMarkProps) {
       <path d="M16 14.2L10.2 20" stroke="url(#brand-stroke)" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M16 14.2L21.8 20" stroke="url(#brand-stroke)" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M16 14.2V20.2" stroke="url(#brand-stroke)" strokeWidth="1.4" strokeLinecap="round" opacity="0.72" />
-      <circle cx="16" cy="8.5" r="2.4" fill="#0f1a30" stroke="#9ad8ff" strokeWidth="1.6" />
-      <circle cx="10.2" cy="20.2" r="2.4" fill="#0f1a30" stroke="#9ad8ff" strokeWidth="1.6" />
-      <circle cx="21.8" cy="20.2" r="2.4" fill="#0f1a30" stroke="#9ad8ff" strokeWidth="1.6" />
+      <circle cx="16" cy="8.5" r="2.4" fill="#252836" stroke="#9ad8ff" strokeWidth="1.6" />
+      <circle cx="10.2" cy="20.2" r="2.4" fill="#252836" stroke="#9ad8ff" strokeWidth="1.6" />
+      <circle cx="21.8" cy="20.2" r="2.4" fill="#252836" stroke="#9ad8ff" strokeWidth="1.6" />
       <path d="M12.4 8.9C12.8 7 14.2 5.7 16 5.7C17.8 5.7 19.2 7 19.6 8.9" stroke="#53b7ff" strokeWidth="1.2" strokeLinecap="round" opacity="0.9" />
     </svg>
   )

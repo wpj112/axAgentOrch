@@ -14,11 +14,11 @@ interface NodeFormProps {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid #2a3a5c',
-  borderRadius: 6, boxSizing: 'border-box', background: '#0f1a30', color: '#e0e0e0',
+  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid #2e3345',
+  borderRadius: 6, boxSizing: 'border-box', background: '#252836', color: '#e0e0e0',
 }
 
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#9ca3af' }
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
 
 function selectorToPath(selector: unknown): string {
@@ -190,7 +190,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
 
   return (
     <div style={{ padding: 20, minWidth: 340, color: '#e0e0e0' }}>
-      <h3 style={{ marginTop: 0, color: '#90caf9' }}>
+      <h3 style={{ marginTop: 0, color: '#60a5fa' }}>
         {initial ? '编辑节点' : '添加节点'}
       </h3>
 
@@ -204,9 +204,9 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, borderRadius: 6,
-                border: '1px solid #2a3a5c',
-                background: type === t ? cfg.color + '22' : '#0f1a30',
-                color: type === t ? cfg.color : '#b0bec5',
+                border: '1px solid #2e3345',
+                background: type === t ? cfg.color + '22' : '#252836',
+                color: type === t ? cfg.color : '#9ca3af',
                 cursor: 'pointer', fontWeight: type === t ? 600 : 400,
               }}
             >
@@ -315,7 +315,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
           <div style={fieldStyle}>
             <label style={labelStyle}>判断字段</label>
             <input value={config.field_path || 'text'} onChange={(e) => setConfigField('field_path', e.target.value)} placeholder="text / result / data.intent" style={inputStyle} />
-            <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 6, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 6, lineHeight: 1.6 }}>
               If-else 默认读取它正上游节点的输出。常见写法：LLM 用 `text`，Code 用 `result`，HTTP JSON 直接写字段名，如 `intent` 或 `data.intent`。
             </div>
           </div>
@@ -336,7 +336,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
               rows={6}
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
             />
-            <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 4 }}>
               每行一个分支，格式：`分支名 = 比较值`。例如 `weather = weather`。
             </div>
           </div>
@@ -344,7 +344,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
             <label style={labelStyle}>默认分支名</label>
             <input value={config.default_case_id || 'default'} onChange={(e) => setConfigField('default_case_id', e.target.value)} style={inputStyle} />
           </div>
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 4, lineHeight: 1.6 }}>
             保存后，从条件节点连出去的边，双击边并填写分支名，例如 `weather` / `chat` / `default`。
           </div>
         </>
@@ -406,7 +406,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
               />
             </div>
           )}
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
             {config.loop_condition_node_id
               ? `当前会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
               : '先选择循环体里的一个节点作为判断来源，再填写它输出里的字段名。'}
@@ -429,20 +429,20 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
               ))}
             </select>
           </div>
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 4, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 4, lineHeight: 1.6 }}>
             {loopChildren.length
               ? `当前循环体里有 ${loopChildren.length} 个节点。条件来源、起点和终点都可以直接从这些节点里选择。`
               : '先把节点加入这个 loop 容器，条件来源、起点/终点下拉里才会出现可选项。'}
           </div>
-          <div style={{ fontSize: 11, color: '#6a7a8a', marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 8 }}>
             loop 连到外部结束节点的边请命名为 `loop_exit`。
           </div>
         </>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #2a3a5c', borderRadius: 6, cursor: 'pointer', background: '#0f1a30', color: '#e0e0e0' }}>取消</button>
-        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: '#1565c0', color: '#fff' }}>确认</button>
+        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #2e3345', borderRadius: 6, cursor: 'pointer', background: '#252836', color: '#e0e0e0' }}>取消</button>
+        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: '#3b82f6', color: '#fff' }}>确认</button>
       </div>
     </div>
   )

@@ -7,7 +7,7 @@ const style: React.CSSProperties = {
   minHeight: 320,
   fontSize: 13,
   fontFamily: '"Fira Code", "JetBrains Mono", "Cascadia Code", Consolas, monospace',
-  border: '1px solid #2a3a5c',
+  border: '1px solid #2e3345',
   borderRadius: 8,
   lineHeight: 1.6,
 }

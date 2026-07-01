@@ -35,7 +35,7 @@ function ConfigPanel({ node, allNodes, onSave, onClose }: ConfigPanelProps) {
         style={{
           position: 'fixed', top: 0, right: 0,
           width: 380, height: '100vh',
-          background: '#1e2a4a',
+          background: '#1a1d29',
           boxShadow: '-4px 0 16px rgba(0,0,0,0.5)',
           color: '#e0e0e0',
           zIndex: 200,
