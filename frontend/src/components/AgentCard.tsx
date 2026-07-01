@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { type Agent, exportAgent } from '../api/client'
 
 interface AgentCardProps {
@@ -7,7 +8,9 @@ interface AgentCardProps {
 }
 
 function AgentCard({ agent, onDelete }: AgentCardProps) {
+  const navigate = useNavigate()
   const [hover, setHover] = useState(false)
+  const [delHover, setDelHover] = useState(false)
 
   const handleExport = async () => {
     try {
@@ -30,6 +33,7 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
 
   return (
     <div
+      onDoubleClick={() => navigate(`/agents/${agent.id}`)}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -54,22 +58,34 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
         </div>
         <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 12 }}>
           <button onClick={handleExport} title="导出" style={{
-            width: 28, height: 28, padding: 0, fontSize: 13, lineHeight: '28px', textAlign: 'center',
+            width: 28, height: 28, padding: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             background: hover ? '#252836' : 'transparent', color: '#8b8fa3',
-            border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.15s',
+            border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
           }}>⬇</button>
-          <a href={`/agents/${agent.id}`} style={{
-            padding: '0 12px', height: 28, lineHeight: '28px', fontSize: 12, fontWeight: 500,
-            background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none',
-          }}>编辑</a>
-          <button onClick={() => onDelete(agent.id)} style={{
-            width: 28, height: 28, padding: 0, fontSize: 14, lineHeight: '28px', textAlign: 'center',
-            background: 'transparent', color: '#8b8fa3', border: 'none', borderRadius: 6, cursor: 'pointer',
-            transition: 'color 0.15s, background 0.15s',
-            ...(hover ? { color: '#ef4444', background: 'rgba(239,68,68,0.1)' } : {}),
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#8b8fa3'; e.currentTarget.style.background = 'transparent' }}
+          <a href={`/agents/${agent.id}`} title="编辑" style={{
+            width: 28, height: 28, padding: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: hover ? '#252836' : 'transparent', color: hover ? '#60a5fa' : '#8b8fa3',
+            border: 'none', borderRadius: 6, cursor: 'pointer', textDecoration: 'none', transition: 'all 0.15s',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <path d="M2 13.5l1 2 2-1L14 5.5l-2-2L3.5 12.5z" />
+              <line x1="10.5" y1="3.5" x2="13.5" y2="6.5" />
+            </svg>
+          </a>
+          <button
+            onClick={() => onDelete(agent.id)}
+            title="删除"
+            onMouseEnter={() => setDelHover(true)}
+            onMouseLeave={() => setDelHover(false)}
+            style={{
+              width: 28, height: 28, padding: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: delHover ? 'rgba(239,68,68,0.12)' : 'transparent',
+              color: delHover ? '#ef4444' : '#8b8fa3',
+              border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+            }}
           >✕</button>
         </div>
       </div>

@@ -311,7 +311,7 @@ ${detail}`)
           />
 
           <div style={{
-            marginTop: 12, padding: '8px 10px', borderRadius: 8,
+            marginTop: 12, padding: '14px 16px', borderRadius: 10,
             background: '#1a1d29', border: '1px solid #2e3345', fontSize: 11, color: '#8b8fa3', lineHeight: 1.8,
           }}>
             💡 <strong style={{ color: '#9ca3af' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#9ca3af' }}>双击</strong>节点编辑 · 从节点上下链接点拖出即可<strong style={{ color: '#9ca3af' }}>连线</strong><br />

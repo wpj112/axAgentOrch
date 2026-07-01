@@ -22,19 +22,18 @@ const labelStyle: React.CSSProperties = {
 
 function AgentForm({ name, description, llmModel, llmTemperature, onChangeName, onChangeDescription, onChangeLlmModel, onChangeLlmTemperature }: AgentFormProps) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ marginBottom: 12 }}>
+    <div style={{ border: '1px solid #2e3345', borderRadius: 10, padding: '16px 18px', background: '#1a1d29' }}>
+      <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>名称</label>
         <input value={name} onChange={(e) => onChangeName(e.target.value)} placeholder="智能体名称" style={inputStyle} />
       </div>
-      <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>描述</label>
         <textarea value={description} onChange={(e) => onChangeDescription(e.target.value)} placeholder="智能体描述（可选）" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
       </div>
 
-      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #2e3345' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#8b8fa3', marginBottom: 10 }}>LLM 覆盖（可选，留空使用全局设置）</div>
-
+      <details style={{ borderTop: '1px solid #2e3345', paddingTop: 12, fontSize: 12, color: '#8b8fa3' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: 8, color: '#9ca3af' }}>LLM 覆盖（可选）</summary>
         <div style={{ marginBottom: 10 }}>
           <label style={labelStyle}>Model</label>
           <input value={llmModel} onChange={(e) => onChangeLlmModel(e.target.value)} placeholder="留空使用全局" style={inputStyle} />
@@ -43,7 +42,7 @@ function AgentForm({ name, description, llmModel, llmTemperature, onChangeName, 
           <label style={labelStyle}>Temperature</label>
           <input value={llmTemperature} onChange={(e) => onChangeLlmTemperature(e.target.value)} placeholder="留空使用全局" style={inputStyle} />
         </div>
-      </div>
+      </details>
     </div>
   )
 }
