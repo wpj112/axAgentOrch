@@ -28,8 +28,13 @@ export function NodeIcon({ type, size = 14, color }: NodeIconProps) {
     case 'llm':
       return (
         <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke={c} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 2.5c-2 0-3 1-3 2.5 0 1.5 1 2.5 2 3 0 1 .2 1.5-.5 2C5.5 11 4 10.5 3.5 9.5c-.5-1-1.5-2-2.5-1.5s-1 2 0 3c1 1 2 2 3.5 2.5s3 .5 3.5 1 .5 1 .5 1" />
-          <path d="M8 2.5c2 0 3 1 3 2.5 0 1.5-1 2.5-2 3 0 1-.2 1.5.5 2C10.5 11 12 10.5 12.5 9.5c.5-1 1.5-2 2.5-1.5s1 2 0 3c-1 1-2 2-3.5 2.5s-3 .5-3.5 1-.5 1-.5 1" />
+          <path d="M8 3.1C7.3 2.5 6.5 2.3 5.6 2.5 4 2.8 3 4.2 3 5.8c0 .9.3 1.7.9 2.3-.3.4-.4.9-.4 1.4 0 1.4 1.1 2.5 2.5 2.5.2 1 1.1 1.8 2 1.8" />
+          <path d="M8 3.1c.7-.6 1.5-.8 2.4-.6C12 2.8 13 4.2 13 5.8c0 .9-.3 1.7-.9 2.3.3.4.4.9.4 1.4 0 1.4-1.1 2.5-2.5 2.5-.2 1-1.1 1.8-2 1.8" />
+          <path d="M8 4.1v8" />
+          <path d="M5.8 5.5c.6.2 1 .6 1.2 1.2" />
+          <path d="M10.2 5.5c-.6.2-1 .6-1.2 1.2" />
+          <path d="M5.3 8.3c.8 0 1.5.3 2 .9" />
+          <path d="M10.7 8.3c-.8 0-1.5.3-2 .9" />
         </svg>
       )
     case 'http':
@@ -55,10 +60,14 @@ export function NodeIcon({ type, size = 14, color }: NodeIconProps) {
       )
     case 'if_else':
       return (
-        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke={c} strokeWidth="1.3">
-          <polygon points="8,1.5 14.5,8 8,14.5 1.5,8" />
-          <line x1="5" y1="8" x2="11" y2="8" strokeWidth="1" />
-          <line x1="8" y1="5" x2="8" y2="11" strokeWidth="1" />
+        <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke={c} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 2.2v3.1" />
+          <path d="M8 5.3v2.1" />
+          <path d="M8 7.4L4.2 11" />
+          <path d="M8 7.4L11.8 11" />
+          <circle cx="8" cy="2.2" r="1.2" fill={c} stroke="none" />
+          <circle cx="4.2" cy="11.2" r="1.2" fill={c} stroke="none" />
+          <circle cx="11.8" cy="11.2" r="1.2" fill={c} stroke="none" />
         </svg>
       )
     case 'loop':

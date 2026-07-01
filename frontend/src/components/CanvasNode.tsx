@@ -32,12 +32,12 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
   return (
     <div
       style={{
-        padding: isLoop ? '14px 16px 18px' : '10px 16px',
+        padding: isLoop ? '10px 12px 14px' : '6px 10px',
         borderRadius: isLoop ? 18 : 10,
         border: `2px solid ${isActive ? '#ffd54f' : si?.color || '#2a3a5c'}`,
         background: isLoop ? 'linear-gradient(180deg, #14303d 0%, #102231 100%)' : '#1e2a4a',
-        minWidth: isLoop ? 280 : 120,
-        minHeight: isLoop ? 180 : undefined,
+        minWidth: isLoop ? 160 : 70,
+        minHeight: isLoop ? 120 : undefined,
         boxShadow: isActive ? '0 0 0 2px rgba(255,213,79,0.2), 0 10px 24px rgba(0,0,0,0.45)' : '0 2px 6px rgba(0,0,0,0.4)',
         fontSize: 13,
         color: '#e0e0e0',
@@ -73,12 +73,9 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
       </div>
 
       {isLoop ? (
-        <div style={{ marginTop: 10, fontSize: 12, color: '#b7d7e5', lineHeight: 1.7 }}>
+        <div style={{ marginTop: 6, fontSize: 10, color: '#b7d7e5', lineHeight: 1.5 }}>
           <div>{data.loopSummary || '循环容器'}</div>
-          <div>循环体节点: {data.childCount || 0}</div>
-          <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, border: `1px dashed ${isActive ? 'rgba(255,213,79,0.55)' : 'rgba(144,202,249,0.35)'}`, color: isActive ? '#ffe082' : '#7fa8bb', background: 'rgba(7,18,28,0.28)' }}>
-            把节点拖进这里，或在右侧把节点加入此循环体。
-          </div>
+          <div>节点: {data.childCount || 0}</div>
         </div>
       ) : data.parentLabel ? (
         <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#90caf9' }}>

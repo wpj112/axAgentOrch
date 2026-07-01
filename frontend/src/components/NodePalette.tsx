@@ -14,12 +14,12 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
         zIndex: 10,
         background: '#1e2a4a',
         borderRadius: 8,
-        padding: '8px 10px',
+        padding: '6px 8px',
         boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        minWidth: 100,
+        gap: 4,
+        minWidth: 72,
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: '#90caf9', marginBottom: 2 }}>节点类型</div>
@@ -33,11 +33,11 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
             onDragStart?.(e, type)
           }}
           style={{
-            padding: '6px 12px',
-            borderRadius: 6,
+            padding: '4px 8px',
+            borderRadius: 5,
             border: '1px solid #2a3a5c',
             cursor: 'grab',
-            fontSize: 13,
+            fontSize: 12,
             textAlign: 'left',
             background: '#0f1a30',
             color: '#e0e0e0',
