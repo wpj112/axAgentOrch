@@ -122,8 +122,8 @@ function toRFNode(
     draggable: true,
     style: isLoop
       ? {
-          width: loopBounds.get(n.id || '')?.width || LOOP_DEFAULT_WIDTH,
-          height: loopBounds.get(n.id || '')?.height || LOOP_DEFAULT_HEIGHT,
+          width: Number(n.config?.loop_width) || loopBounds.get(n.id || '')?.width || LOOP_DEFAULT_WIDTH,
+          height: Number(n.config?.loop_height) || loopBounds.get(n.id || '')?.height || LOOP_DEFAULT_HEIGHT,
           zIndex: -1,
         }
       : undefined,
@@ -207,11 +207,18 @@ function FlowCanvasInner({
           }
         : { x: n.position.x, y: n.position.y }
 
+      const cfg = { ...(parent?.config || (n.data?.config as Record<string, unknown>) || {}) }
+      if (n.data?.type === 'loop' && n.style) {
+        const w = Number(n.style.width)
+        const h = Number(n.style.height)
+        if (w && w !== Number(cfg.loop_width)) cfg.loop_width = w
+        if (h && h !== Number(cfg.loop_height)) cfg.loop_height = h
+      }
       return {
         id: n.id,
         type: (n.data?.type as AgentNode['type']) || 'start',
         label: n.data?.label || '',
-        config: parent?.config || (n.data?.config as Record<string, unknown>) || {},
+        config: cfg,
         parent_id: parentNodeId,
         position_x: absPosition.x,
         position_y: absPosition.y,

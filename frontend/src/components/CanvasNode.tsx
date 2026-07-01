@@ -1,4 +1,4 @@
-import { Handle, Position, type NodeProps } from 'reactflow'
+import { Handle, Position, NodeResizer, type NodeProps } from 'reactflow'
 import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 const STATUS_ICONS: Record<string, { text: string; color: string }> = {
@@ -73,10 +73,13 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
       </div>
 
       {isLoop ? (
-        <div style={{ marginTop: 6, fontSize: 10, color: '#b7d7e5', lineHeight: 1.5 }}>
-          <div>{data.loopSummary || '循环容器'}</div>
-          <div>节点: {data.childCount || 0}</div>
-        </div>
+        <>
+          <NodeResizer minWidth={160} minHeight={120} />
+          <div style={{ marginTop: 6, fontSize: 10, color: '#b7d7e5', lineHeight: 1.5 }}>
+            <div>{data.loopSummary || '循环容器'}</div>
+            <div>节点: {data.childCount || 0}</div>
+          </div>
+        </>
       ) : data.parentLabel ? (
         <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#90caf9' }}>
           属于循环体: {data.parentLabel}
