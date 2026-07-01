@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { AgentNode } from '../api/client'
+import JsonEditor from './JsonEditor'
 
 const defaultIfElseBranches = `weather = weather
 chat = chat`
@@ -242,7 +243,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Body Template (JSON)</label>
-            <textarea value={config.body || '{}'} onChange={(e) => setConfigField('body', e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+            <JsonEditor value={config.body || '{}'} onChange={(v) => setConfigField('body', v)} />
           </div>
         </>
       )}
