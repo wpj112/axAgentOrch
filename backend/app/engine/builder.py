@@ -54,18 +54,22 @@ def build_graph(
         if route_key:
             handle_edges.setdefault(src, {})[route_key] = tgt
 
-    # Topological sort (for normal nodes, excluding loop internals)
-    in_degree = {k: 0 for k in node_map}
+    # Topological sort — exclude loop children (they're only executed inside the loop)
+    topo_nodes = {k: v for k, v in node_map.items() if not v.parent_id}
+    in_degree = {k: 0 for k in topo_nodes}
     for e in edges:
         target = str(e.target_node_id)
-        in_degree[target] = in_degree.get(target, 0) + 1
+        if target in in_degree:
+            in_degree[target] += 1
     order = []
     queue = [nid for nid, deg in in_degree.items() if deg == 0]
     while queue:
         nid = queue.pop(0)
         order.append(nid)
         for child in children.get(nid, []):
-            in_degree[child] = in_degree.get(child, 0) - 1
+            if child not in in_degree:
+                continue
+            in_degree[child] -= 1
             if in_degree[child] == 0:
                 queue.append(child)
 
@@ -169,6 +173,8 @@ def build_graph(
         return resolved_cases
 
     for n in nodes:
+        if n.parent_id:
+            continue
         nid = str(n.id)
         ntype = n.type
         nlabel = n.label or ntype
