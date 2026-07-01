@@ -1,19 +1,4 @@
-const NODE_TYPES = [
-  { type: 'start', label: '开始' },
-  { type: 'llm', label: 'LLM' },
-  { type: 'http', label: 'HTTP' },
-  { type: 'db', label: '数据库' },
-  { type: 'code', label: '代码' },
-  { type: 'if_else', label: '条件' },
-  { type: 'loop', label: '循环' },
-  { type: 'end', label: '结束' },
-]
-
-const TYPE_COLORS: Record<string, string> = {
-  start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
-  db: '#ff9800', code: '#795548', end: '#f44336',
-  if_else: '#e91e63', loop: '#00bcd4',
-}
+import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 interface NodePaletteProps {
   onDragStart?: (event: React.DragEvent, nodeType: string) => void
@@ -38,7 +23,7 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: '#90caf9', marginBottom: 2 }}>节点类型</div>
-      {NODE_TYPES.map(({ type, label }) => (
+      {Object.entries(NODE_CONFIG).map(([type, cfg]) => (
         <div
           key={type}
           draggable
@@ -50,16 +35,21 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
           style={{
             padding: '6px 12px',
             borderRadius: 6,
-            border: `1px solid ${TYPE_COLORS[type] || '#ccc'}`,
+            border: `1px solid ${cfg.color}`,
             cursor: 'grab',
             fontSize: 13,
             textAlign: 'center',
             background: '#0f1a30',
             color: '#e0e0e0',
             userSelect: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            justifyContent: 'center',
           }}
         >
-          {label}
+          <NodeIcon type={type} size={14} />
+          {cfg.label}
         </div>
       ))}
     </div>

@@ -1,22 +1,5 @@
 import type { AgentNode } from '../api/client'
-
-const TYPE_LABELS: Record<string, string> = {
-  start: '开始',
-  llm: 'LLM',
-  http: 'HTTP',
-  db: '数据库',
-  code: '代码',
-  end: '结束',
-}
-
-const TYPE_COLORS: Record<string, string> = {
-  start: '#4caf50',
-  llm: '#9c27b0',
-  http: '#2196f3',
-  db: '#ff9800',
-  code: '#795548',
-  end: '#f44336',
-}
+import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 interface NodeCardProps {
   node: AgentNode
@@ -30,11 +13,12 @@ interface NodeCardProps {
 }
 
 function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRemoveEdge }: NodeCardProps) {
+  const cfg = NODE_CONFIG[node.type] || { label: node.type, color: '#ccc' }
   const connectedTo = edges.filter((e) => e.sourceIdx === index).map((e) => e.targetIdx)
 
   const addConnection = () => {
     const target = window.prompt(
-      `为「${node.label}」选择目标节点 (0-${nodes.length - 1}):\n${nodes.map((n, i) => `${i}: ${n.label} (${TYPE_LABELS[n.type] || n.type})`).join('\n')}`
+      `为「${node.label}」选择目标节点 (0-${nodes.length - 1}):\n${nodes.map((n, i) => `${i}: ${n.label} (${NODE_CONFIG[n.type]?.label || n.type})`).join('\n')}`
     )
     if (target === null) return
     const targetIdx = parseInt(target, 10)
@@ -45,7 +29,7 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
   return (
     <div
       style={{
-        border: `2px solid ${TYPE_COLORS[node.type] || '#ccc'}`,
+        border: `2px solid ${cfg.color}`,
         borderRadius: 8,
         padding: '10px 14px',
         marginBottom: 8,
@@ -57,8 +41,8 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
         <div>
           <span
             style={{
-              display: 'inline-block',
-              background: TYPE_COLORS[node.type] || '#ccc',
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              background: cfg.color,
               color: '#fff',
               padding: '2px 8px',
               borderRadius: 10,
@@ -66,7 +50,8 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
               marginRight: 8,
             }}
           >
-            {TYPE_LABELS[node.type] || node.type}
+            <NodeIcon type={node.type} size={11} />
+            {cfg.label}
           </span>
           <strong>{node.label}</strong>
         </div>

@@ -1,16 +1,5 @@
 import { Handle, Position, type NodeProps } from 'reactflow'
-
-const TYPE_LABELS: Record<string, string> = {
-  start: '开始', llm: 'LLM', http: 'HTTP',
-  db: '数据库', code: '代码', end: '结束',
-  if_else: '条件', loop: '循环',
-}
-
-const TYPE_COLORS: Record<string, string> = {
-  start: '#4caf50', llm: '#9c27b0', http: '#2196f3',
-  db: '#ff9800', code: '#795548', end: '#f44336',
-  if_else: '#e91e63', loop: '#00bcd4',
-}
+import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 const STATUS_ICONS: Record<string, { text: string; color: string }> = {
   running: { text: '⏳', color: '#90caf9' },
@@ -32,7 +21,8 @@ export interface CanvasNodeData {
 
 function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
   const nodeType = data.type || 'start'
-  const color = TYPE_COLORS[nodeType] || '#999'
+  const cfg = NODE_CONFIG[nodeType] || { label: nodeType, color: '#999' }
+  const color = cfg.color
   const status = data.status
   const si = status ? STATUS_ICONS[status] : null
   const isLoop = nodeType === 'loop'
@@ -70,7 +60,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         )}
         <span
           style={{
-            display: 'inline-block',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
             background: isActive ? '#ffd54f' : color,
             color: isActive ? '#0f172a' : '#fff',
             padding: '2px 8px',
@@ -79,7 +69,8 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
             fontWeight: 600,
           }}
         >
-          {TYPE_LABELS[nodeType] || nodeType}
+          <NodeIcon type={nodeType} size={12} />
+          {cfg.label}
         </span>
         <span style={{ fontWeight: 600 }}>{data.label}</span>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AgentNode } from '../api/client'
 import JsonEditor from './JsonEditor'
+import { NodeIcon, NODE_CONFIG } from './nodeIcons'
 
 const defaultIfElseBranches = `weather = weather
 chat = chat`
@@ -25,8 +26,6 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#b0bec5' }
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
-const TYPE_OPTIONS = ['start', 'llm', 'http', 'db', 'code', 'if_else', 'loop', 'end']
-
 function selectorToPath(selector: unknown): string {
   if (Array.isArray(selector)) return selector.map(String).join('.')
   return typeof selector === 'string' ? selector : 'text'
@@ -177,11 +176,25 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
 
       <div style={fieldStyle}>
         <label style={labelStyle}>类型</label>
-        <select value={type} onChange={(e) => setType(e.target.value as AgentNode['type'])} style={inputStyle}>
-          {TYPE_OPTIONS.map((t) => (
-            <option key={t} value={t}>{t}</option>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {Object.entries(NODE_CONFIG).map(([t, cfg]) => (
+            <button
+              key={t}
+              onClick={() => setType(t as AgentNode['type'])}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 12, borderRadius: 6,
+                border: `1px solid ${type === t ? cfg.color : '#2a3a5c'}`,
+                background: type === t ? cfg.color + '22' : '#0f1a30',
+                color: type === t ? cfg.color : '#b0bec5',
+                cursor: 'pointer', fontWeight: type === t ? 600 : 400,
+              }}
+            >
+              <NodeIcon type={t} size={13} />
+              {cfg.label}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
       <div style={fieldStyle}>
@@ -332,7 +345,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
             <select value={config.start_node_id || ''} onChange={(e) => setConfigField('start_node_id', e.target.value)} style={inputStyle} disabled={!loopChildren.length}>
               <option value="">未设置</option>
               {loopChildren.map((node) => (
-                <option key={node.id} value={node.id}>{node.label} ({node.type})</option>
+                <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
               ))}
             </select>
           </div>
@@ -341,7 +354,7 @@ function NodeForm({ initial, allNodes, onSave, onCancel }: NodeFormProps) {
             <select value={config.end_node_id || ''} onChange={(e) => setConfigField('end_node_id', e.target.value)} style={inputStyle} disabled={!loopChildren.length}>
               <option value="">未设置</option>
               {loopChildren.map((node) => (
-                <option key={node.id} value={node.id}>{node.label} ({node.type})</option>
+                <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
               ))}
             </select>
           </div>
