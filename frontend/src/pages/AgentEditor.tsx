@@ -4,7 +4,6 @@ import axios from 'axios'
 import { fetchAgent, createAgent, updateAgent, exportAgent, type AgentNode } from '../api/client'
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
-import NodePalette from '../components/NodePalette'
 import ConfigPanel from '../components/ConfigPanel'
 
 interface EdgeDef {
@@ -298,7 +297,7 @@ ${detail}`)
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         <div>
           <AgentForm
             name={name}
@@ -311,8 +310,14 @@ ${detail}`)
             onChangeLlmTemperature={setLlmTemperature}
           />
 
-          <div style={{ marginTop: 12 }}>
-            <NodePalette />
+          <div style={{
+            marginTop: 12, padding: '8px 10px', borderRadius: 8,
+            background: '#1a1d29', border: '1px solid #2e3345', fontSize: 11, color: '#8b8fa3', lineHeight: 1.8,
+          }}>
+            💡 <strong style={{ color: '#9ca3af' }}>拖拽</strong>面板节点到画布 · <strong style={{ color: '#9ca3af' }}>双击</strong>节点编辑 · 从节点上下链接点拖出即可<strong style={{ color: '#9ca3af' }}>连线</strong><br />
+            🔄 循环体：把节点直接拖进循环容器即可加入；拖右下角斜纹手柄可调整容器大小<br />
+            🔀 条件分支：先连线，再<strong style={{ color: '#9ca3af' }}>双击边</strong>填写 <strong style={{ color: '#9ca3af' }}>sourceHandle</strong>，并与 case_id 对应<br />
+            📥 <strong style={{ color: '#9ca3af' }}>滚轮</strong>缩放 · <strong style={{ color: '#9ca3af' }}>Delete</strong> 删除节点或边 · 列表页可导入导出 JSON
           </div>
         </div>
 

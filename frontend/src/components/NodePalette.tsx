@@ -8,13 +8,18 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
   return (
     <div
       style={{
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        zIndex: 10,
         background: '#1a1d29',
-        border: '1px solid #2e3345',
         borderRadius: 8,
-        padding: '8px 10px',
+        padding: '6px 8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
         display: 'flex',
         flexDirection: 'column',
         gap: 4,
+        minWidth: 72,
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', marginBottom: 2 }}>节点类型</div>
