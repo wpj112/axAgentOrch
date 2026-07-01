@@ -48,7 +48,7 @@ function NodePalette({ onDragStart }: NodePaletteProps) {
             justifyContent: 'center',
           }}
         >
-          <NodeIcon type={type} size={14} />
+          <NodeIcon type={type} size={14} color={cfg.color} />
           {cfg.label}
         </div>
       ))}

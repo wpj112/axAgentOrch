@@ -69,7 +69,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
             fontWeight: 600,
           }}
         >
-          <NodeIcon type={nodeType} size={12} />
+          <NodeIcon type={nodeType} size={12} color="#fff" />
           {cfg.label}
         </span>
         <span style={{ fontWeight: 600 }}>{data.label}</span>

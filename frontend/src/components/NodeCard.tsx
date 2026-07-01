@@ -50,7 +50,7 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
               marginRight: 8,
             }}
           >
-            <NodeIcon type={node.type} size={11} />
+            <NodeIcon type={node.type} size={11} color="#fff" />
             {cfg.label}
           </span>
           <strong>{node.label}</strong>
