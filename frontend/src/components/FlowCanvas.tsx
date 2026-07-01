@@ -1,10 +1,20 @@
-import { useCallback, useMemo, useRef, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import ReactFlow, {
-  Background, Controls, MiniMap,
-  addEdge, useNodesState, useEdgesState,
-  ReactFlowProvider, useReactFlow,
-  type Connection, type Node, type Edge,
-  type OnNodesChange, type OnEdgesChange,
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  addEdge,
+  applyEdgeChanges,
+  applyNodeChanges,
+  useEdgesState,
+  useNodesState,
+  useReactFlow,
+  type Connection,
+  type Edge,
+  type Node,
+  type OnEdgesChange,
+  type OnNodesChange,
 } from 'reactflow'
 import dagre from 'dagre'
 import type { AgentNode } from '../api/client'
@@ -17,6 +27,15 @@ const LOOP_DEFAULT_HEIGHT = 220
 const LOOP_INSET_X = 28
 const LOOP_INSET_TOP = 94
 const LOOP_INSET_BOTTOM = 26
+
+type LoopBounds = {
+  x: number
+  y: number
+  width: number
+  height: number
+  minWidth: number
+  minHeight: number
+}
 
 interface EdgeDef {
   sourceIdx: number
@@ -35,34 +54,48 @@ interface FlowCanvasProps {
   onDoubleClickNode: (idx: number) => void
 }
 
-type LoopBounds = { x: number; y: number; width: number; height: number }
-
 function summarizeLoopConfig(config: Record<string, unknown>) {
   const maxIterations = Number(config.max_iterations || 5)
   const hasCondition = Boolean(config.condition && Object.keys(config.condition as Record<string, unknown>).length > 0)
   return hasCondition ? `最多 ${maxIterations} 轮，按条件退出` : `固定循环，最多 ${maxIterations} 轮`
 }
 
+function readLoopDimension(config: Record<string, unknown>, key: 'loop_width' | 'loop_height') {
+  const value = Number(config[key])
+  return Number.isFinite(value) && value > 0 ? value : 0
+}
+
 function computeLoopBounds(loopNode: AgentNode, childNodes: AgentNode[]): LoopBounds {
+  const configuredWidth = readLoopDimension(loopNode.config || {}, 'loop_width')
+  const configuredHeight = readLoopDimension(loopNode.config || {}, 'loop_height')
+
   if (!childNodes.length) {
     return {
       x: loopNode.position_x || 0,
       y: loopNode.position_y || 0,
-      width: LOOP_DEFAULT_WIDTH,
-      height: LOOP_DEFAULT_HEIGHT,
+      width: Math.max(LOOP_DEFAULT_WIDTH, configuredWidth),
+      height: Math.max(LOOP_DEFAULT_HEIGHT, configuredHeight),
+      minWidth: LOOP_DEFAULT_WIDTH,
+      minHeight: LOOP_DEFAULT_HEIGHT,
     }
   }
 
   const left = Math.min(...childNodes.map((child) => child.position_x || 0)) - LOOP_INSET_X
   const top = Math.min(...childNodes.map((child) => child.position_y || 0)) - LOOP_INSET_TOP
+  const anchorX = Math.min(loopNode.position_x || left, left)
+  const anchorY = Math.min(loopNode.position_y || top, top)
   const right = Math.max(...childNodes.map((child) => (child.position_x || 0) + 220)) + LOOP_INSET_X
   const bottom = Math.max(...childNodes.map((child) => (child.position_y || 0) + 90)) + LOOP_INSET_BOTTOM
+  const minWidth = Math.max(LOOP_DEFAULT_WIDTH, right - anchorX)
+  const minHeight = Math.max(LOOP_DEFAULT_HEIGHT, bottom - anchorY)
 
   return {
-    x: Math.min(loopNode.position_x || left, left),
-    y: Math.min(loopNode.position_y || top, top),
-    width: Math.max(LOOP_DEFAULT_WIDTH, right - Math.min(loopNode.position_x || left, left)),
-    height: Math.max(LOOP_DEFAULT_HEIGHT, bottom - Math.min(loopNode.position_y || top, top)),
+    x: anchorX,
+    y: anchorY,
+    width: Math.max(minWidth, configuredWidth),
+    height: Math.max(minHeight, configuredHeight),
+    minWidth,
+    minHeight,
   }
 }
 
@@ -89,6 +122,22 @@ function buildActiveLoopInfo(nodes: AgentNode[], selectedNodeId?: string | null)
   return { activeLoopId, activeNodeIds }
 }
 
+function getNodePixelWidth(node: Node) {
+  const styleWidth = Number((node.style as { width?: number } | undefined)?.width)
+  const width = Number(node.width)
+  if (Number.isFinite(styleWidth) && styleWidth > 0) return styleWidth
+  if (Number.isFinite(width) && width > 0) return width
+  return LOOP_DEFAULT_WIDTH
+}
+
+function getNodePixelHeight(node: Node) {
+  const styleHeight = Number((node.style as { height?: number } | undefined)?.height)
+  const height = Number(node.height)
+  if (Number.isFinite(styleHeight) && styleHeight > 0) return styleHeight
+  if (Number.isFinite(height) && height > 0) return height
+  return LOOP_DEFAULT_HEIGHT
+}
+
 function toRFNode(
   n: AgentNode,
   idx: number,
@@ -105,6 +154,7 @@ function toRFNode(
   const isLoop = n.type === 'loop'
   const isInActiveLoop = activeLoopId ? n.id === activeLoopId || n.parent_id === activeLoopId : false
   const isMuted = Boolean(activeLoopId) && !isInActiveLoop
+  const loopBound = isLoop ? loopBounds.get(n.id || '') : null
 
   const position = parentBound
     ? {
@@ -122,8 +172,8 @@ function toRFNode(
     draggable: true,
     style: isLoop
       ? {
-          width: loopBounds.get(n.id || '')?.width || LOOP_DEFAULT_WIDTH,
-          height: loopBounds.get(n.id || '')?.height || LOOP_DEFAULT_HEIGHT,
+          width: loopBound?.width || LOOP_DEFAULT_WIDTH,
+          height: loopBound?.height || LOOP_DEFAULT_HEIGHT,
           zIndex: -1,
         }
       : undefined,
@@ -135,6 +185,8 @@ function toRFNode(
       childCount,
       parentLabel: parent?.label || null,
       loopSummary: isLoop ? summarizeLoopConfig(n.config) : null,
+      loopMinWidth: loopBound?.minWidth || LOOP_DEFAULT_WIDTH,
+      loopMinHeight: loopBound?.minHeight || LOOP_DEFAULT_HEIGHT,
       activeState: activeLoopId ? (isMuted ? 'muted' : 'active') : null,
     },
   }
@@ -160,11 +212,29 @@ function toRFEdge(e: EdgeDef, nodes: AgentNode[], activeNodeIds: Set<string>): E
   }
 }
 
+function syncLoopChildCounts(rfNodes: Node[]) {
+  return rfNodes.map((node) => {
+    if (node.data?.type !== 'loop') return node
+    const childCount = rfNodes.filter((candidate) => candidate.parentNode === node.id).length
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        childCount,
+      },
+    }
+  })
+}
+
 function autoLayout(rfNodes: Node[], rfEdges: Edge[]) {
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({ rankdir: 'LR', nodesep: 60, ranksep: 100 })
-  rfNodes.filter((node) => !node.parentNode).forEach((n) => g.setNode(n.id, { width: 150, height: 60 }))
+  rfNodes.filter((node) => !node.parentNode).forEach((n) => {
+    const width = n.data?.type === 'loop' ? getNodePixelWidth(n) : 150
+    const height = n.data?.type === 'loop' ? getNodePixelHeight(n) : 60
+    g.setNode(n.id, { width, height })
+  })
   rfEdges.forEach((e) => g.setEdge(e.source, e.target))
   dagre.layout(g)
   return rfNodes.map((n) => {
@@ -183,8 +253,8 @@ function FlowCanvasInner({
   const initializedRef = useRef(false)
   const syncLockRef = useRef(false)
 
-  const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState([])
-  const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState([])
+  const [rfNodes, setRfNodes] = useNodesState([])
+  const [rfEdges, setRfEdges] = useEdgesState([])
 
   const rfNodesRef = useRef(rfNodes)
   const rfEdgesRef = useRef(rfEdges)
@@ -197,8 +267,8 @@ function FlowCanvasInner({
     const idxMap = new Map(nextRfNodes.map((n, i) => [n.id, i]))
     const rfNodeMap = new Map(nextRfNodes.map((n) => [n.id, n]))
     const agentNodes: AgentNode[] = nextRfNodes.map((n) => {
-      const parent = nodesPropRef.current.find((pn) => (pn.id || '') === n.id)
-      const parentNodeId = typeof n.parentNode === 'string' ? n.parentNode : parent?.parent_id || null
+      const sourceNode = nodesPropRef.current.find((pn) => (pn.id || '') === n.id)
+      const parentNodeId = typeof n.parentNode === 'string' ? n.parentNode : sourceNode?.parent_id || null
       const parentRfNode = parentNodeId ? rfNodeMap.get(parentNodeId) : null
       const absPosition = parentRfNode
         ? {
@@ -206,12 +276,18 @@ function FlowCanvasInner({
             y: (parentRfNode.position.y || 0) + (n.position.y || 0) + 72,
           }
         : { x: n.position.x, y: n.position.y }
+      const baseConfig = { ...(sourceNode?.config || (n.data?.config as Record<string, unknown>) || {}) }
+
+      if ((n.data?.type as AgentNode['type']) === 'loop') {
+        baseConfig.loop_width = Math.round(getNodePixelWidth(n))
+        baseConfig.loop_height = Math.round(getNodePixelHeight(n))
+      }
 
       return {
         id: n.id,
         type: (n.data?.type as AgentNode['type']) || 'start',
         label: n.data?.label || '',
-        config: parent?.config || (n.data?.config as Record<string, unknown>) || {},
+        config: baseConfig,
         parent_id: parentNodeId,
         position_x: absPosition.x,
         position_y: absPosition.y,
@@ -237,7 +313,7 @@ function FlowCanvasInner({
     }
   }, [])
 
-  const nodeIdKey = nodes.map((n) => `${n.id}:${n.parent_id || ''}:${n.position_x || 0}:${n.position_y || 0}`).join(',')
+  const nodeIdKey = nodes.map((n) => `${n.id}:${n.parent_id || ''}:${n.position_x || 0}:${n.position_y || 0}:${readLoopDimension(n.config || {}, 'loop_width')}:${readLoopDimension(n.config || {}, 'loop_height')}`).join(',')
   const edgeKey = edges.map((e) => `${e.sourceIdx}-${e.targetIdx}-${e.sourceHandle || ''}-${e.condition || ''}`).join('|')
   const prevSyncKeyRef = useRef(`${nodeIdKey}::${edgeKey}`)
   useEffect(() => {
@@ -314,7 +390,7 @@ function FlowCanvasInner({
     }
 
     setRfNodes((nds) => {
-      const next = [...nds, newNode]
+      const next = syncLoopChildCounts([...nds, newNode])
       syncToParent(next, rfEdgesRef.current)
       return next
     })
@@ -342,20 +418,20 @@ function FlowCanvasInner({
   }, [setRfEdges, syncToParent])
 
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
-    onRfNodesChange(changes)
     setRfNodes((nds) => {
-      syncToParent(nds, rfEdgesRef.current)
-      return nds
+      const next = syncLoopChildCounts(applyNodeChanges(changes, nds))
+      syncToParent(next, rfEdgesRef.current)
+      return next
     })
-  }, [onRfNodesChange, setRfNodes, syncToParent])
+  }, [setRfNodes, syncToParent])
 
   const handleEdgesChange: OnEdgesChange = useCallback((changes) => {
-    onRfEdgesChange(changes)
     setRfEdges((eds) => {
-      syncToParent(rfNodesRef.current, eds)
-      return eds
+      const next = applyEdgeChanges(changes, eds)
+      syncToParent(rfNodesRef.current, next)
+      return next
     })
-  }, [onRfEdgesChange, setRfEdges, syncToParent])
+  }, [setRfEdges, syncToParent])
 
   const handleAutoLayout = () => {
     const laidOut = autoLayout(rfNodesRef.current, rfEdgesRef.current)
