@@ -28,6 +28,27 @@ const fieldStyle: React.CSSProperties = { marginBottom: 12 }
 
 type ConfigState = Record<string, string>
 
+function getRecommendedField(nodeType?: AgentNode['type']) {
+  switch (nodeType) {
+    case 'llm':
+      return 'text'
+    case 'code':
+      return 'result'
+    case 'if_else':
+      return 'matched_case'
+    case 'loop':
+      return 'iterations'
+    case 'start':
+    case 'end':
+      return 'status'
+    case 'http':
+    case 'db':
+      return ''
+    default:
+      return 'text'
+  }
+}
+
 function deriveLoopFields(config: ConfigState): ConfigState {
   const next = { ...config }
   let parsedCondition: Record<string, unknown> = {}
@@ -142,6 +163,30 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
 
   const setConfigField = (key: string, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleIfSourceNodeChange = (nodeId: string) => {
+    const node = ifSourceNodes.find((item) => item.id === nodeId)
+    const recommendedField = getRecommendedField(node?.type)
+    setConfig((prev) => ({
+      ...prev,
+      if_source_node_id: nodeId,
+      if_source_field: !prev.if_source_field || prev.if_source_field === 'text' || prev.if_source_field === 'result' || prev.if_source_field === 'data' || prev.if_source_field === 'status' || prev.if_source_field === 'matched_case' || prev.if_source_field === 'iterations'
+        ? recommendedField
+        : prev.if_source_field,
+    }))
+  }
+
+  const handleLoopConditionNodeChange = (nodeId: string) => {
+    const node = loopConditionNodes.find((item) => item.id === nodeId)
+    const recommendedField = getRecommendedField(node?.type)
+    setConfig((prev) => ({
+      ...prev,
+      loop_condition_node_id: nodeId,
+      loop_condition_field: !prev.loop_condition_field || prev.loop_condition_field === 'text' || prev.loop_condition_field === 'result' || prev.loop_condition_field === 'data' || prev.loop_condition_field === 'status' || prev.loop_condition_field === 'matched_case' || prev.loop_condition_field === 'iterations'
+        ? recommendedField
+        : prev.loop_condition_field,
+    }))
   }
 
   const loopChildren = type === 'loop' && initial?.id && allNodes
@@ -360,7 +405,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
         <>
           <div style={fieldStyle}>
             <label style={labelStyle}>判断来源节点</label>
-            <select value={config.if_source_node_id || ''} onChange={(e) => setConfigField('if_source_node_id', e.target.value)} style={inputStyle}>
+            <select value={config.if_source_node_id || ''} onChange={(e) => handleIfSourceNodeChange(e.target.value)} style={inputStyle}>
               <option value="">使用直接上游输出</option>
               {ifSourceNodes.map((node) => (
                 <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
@@ -371,7 +416,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <label style={labelStyle}>判断字段</label>
             <input value={config.if_source_field || 'text'} onChange={(e) => setConfigField('if_source_field', e.target.value)} placeholder="text / result / data.intent" style={inputStyle} />
             <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 6, lineHeight: 1.6 }}>
-              先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。你只需要为每个目标节点补上触发条件。
+              先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。LLM / Code / If-else / Loop 会自动带出推荐字段；HTTP / DB 因返回结构不固定，默认留空让你自己选择具体字段。
             </div>
           </div>
           {connectedBranchTargets.length > 0 ? (
@@ -428,7 +473,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>继续条件</label>
-            <select value={config.loop_condition_node_id || ''} onChange={(e) => setConfigField('loop_condition_node_id', e.target.value)} style={inputStyle} disabled={!loopConditionNodes.length}>
+            <select value={config.loop_condition_node_id || ''} onChange={(e) => handleLoopConditionNodeChange(e.target.value)} style={inputStyle} disabled={!loopConditionNodes.length}>
               <option value="">未设置（仅按最大轮次结束）</option>
               {loopConditionNodes.map((node) => (
                 <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
@@ -460,7 +505,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
           <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
             {config.loop_condition_node_id
               ? `当前会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
-              : '先选择循环体里的一个节点作为判断来源，再填写它输出里的字段名。'}
+              : '先选择循环体里的一个节点作为判断来源。固定结构节点会自动带出推荐字段；HTTP / DB 默认留空，避免推荐错误字段。'}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>循环体起点</label>
