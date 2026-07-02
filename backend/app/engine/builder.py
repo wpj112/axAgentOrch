@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from typing import Annotated, TypedDict
+from typing import Annotated, TypedDict, Callable
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
@@ -26,6 +26,7 @@ def build_graph(
     api_key: str | None = None,
     base_url: str | None = None,
     temperature: float = 0.7,
+    step_callback: Callable[[dict], None] | None = None,
 ):
     llm = ChatOpenAI(
         model=model or settings.llm_model,
@@ -93,6 +94,21 @@ def build_graph(
         outputs = dict(state.get("node_outputs", {}))
         outputs[nid] = data
         return {"node_outputs": outputs}
+
+    def emit_recorded_step(step_state: dict, step_node_id: str, output: object | None = None, ref_node_id: str | None = None) -> None:
+        if not step_callback:
+            return
+        steps = step_state.get("execution_steps", []) if isinstance(step_state, dict) else []
+        for step in reversed(steps):
+            if step.get("node_id") != step_node_id:
+                continue
+            payload = dict(step)
+            if ref_node_id:
+                payload["ref_node_id"] = ref_node_id
+            if output is not None:
+                payload["output"] = output
+            step_callback(payload)
+            return
 
     def build_condition_context(state: AgentState, nid: str) -> tuple[dict, object | None]:
         outputs = dict(state.get("node_outputs", {}))
@@ -192,6 +208,7 @@ def build_graph(
                 def fn(state: AgentState) -> dict:
                     s1 = mark_step(state, sid, stype, slabel, "success")
                     s2 = set_output(state, sid, {"status": "ok"})
+                    emit_recorded_step(s1, sid, {"status": "ok"})
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_start_fn(nid, ntype, nlabel))
@@ -201,6 +218,7 @@ def build_graph(
                 def fn(state: AgentState) -> dict:
                     s1 = mark_step(state, sid, stype, slabel, "success")
                     s2 = set_output(state, sid, {"status": "ok"})
+                    emit_recorded_step(s1, sid, {"status": "ok"})
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_end_fn(nid, ntype, nlabel))
@@ -245,10 +263,12 @@ def build_graph(
                         output_content = resp.content if hasattr(resp, "content") else str(resp)
                         s1 = mark_step(state, sid, stype, slabel, "success")
                         s2 = set_output(state, sid, {"text": output_content})
+                        emit_recorded_step(s1, sid, {"text": output_content})
                         return {"messages": [resp], "tool_results": tool_results, "execution_steps": s1.get("execution_steps", []), "node_outputs": s2.get("node_outputs", {})}
                     except Exception as e:
                         s1 = mark_step(state, sid, stype, slabel, "failed")
                         s2 = set_output(state, sid, {"error": str(e)})
+                        emit_recorded_step(s1, sid, {"error": str(e)})
                         return {"messages": [HumanMessage(content=f"Error: {e}")], "tool_results": tool_results, "execution_steps": s1.get("execution_steps", []), "node_outputs": s2.get("node_outputs", {})}
                 return fn
             graph.add_node(nid, make_llm_fn(nid, ntype, nlabel, nconfig))
@@ -284,7 +304,9 @@ def build_graph(
 
                     tool_results = {**state.get("tool_results", {}), sid: data}
                     s1 = mark_step(state, sid, stype, slabel, "failed" if "error" in str(data) else "success")
-                    s2 = set_output(state, sid, data if isinstance(data, dict) else {"result": data})
+                    output_payload = data if isinstance(data, dict) else {"result": data}
+                    s2 = set_output(state, sid, output_payload)
+                    emit_recorded_step(s1, sid, output_payload)
                     return {"tool_results": tool_results, "execution_steps": s1.get("execution_steps", []), "node_outputs": s2.get("node_outputs", {})}
                 return fn
             graph.add_node(nid, make_http_fn(nid, ntype, nlabel, nconfig))
@@ -306,7 +328,9 @@ def build_graph(
                         rows = {"error": str(e)}
                     tool_results = {**state.get("tool_results", {}), sid: rows}
                     s1 = mark_step(state, sid, stype, slabel, "failed" if isinstance(rows, dict) and "error" in rows else "success")
-                    s2 = set_output(state, sid, rows if isinstance(rows, list) else rows)
+                    output_payload = rows if isinstance(rows, list) else rows
+                    s2 = set_output(state, sid, output_payload)
+                    emit_recorded_step(s1, sid, output_payload)
                     return {"tool_results": tool_results, "execution_steps": s1.get("execution_steps", []), "node_outputs": s2.get("node_outputs", {})}
                 return fn
             graph.add_node(nid, make_db_fn(nid, ntype, nlabel, nconfig))
@@ -343,6 +367,7 @@ def build_graph(
                     tool_results = {**state.get("tool_results", {}), sid: output}
                     s1 = mark_step(state, sid, stype, slabel, "success")
                     s2 = set_output(state, sid, {"result": output})
+                    emit_recorded_step(s1, sid, {"result": output})
                     return {"tool_results": tool_results, "execution_steps": s1.get("execution_steps", []), "node_outputs": s2.get("node_outputs", {})}
                 return fn
             graph.add_node(nid, make_code_fn(nid, ntype, nlabel, nconfig))
@@ -362,7 +387,9 @@ def build_graph(
                         matched = if_config.get("default_case_id", "default")
                     matched_label = resolve_case_label(sid, matched)
                     s1 = mark_step(state, sid, stype, slabel, "success")
-                    s2 = set_output(state, sid, {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output})
+                    output_payload = {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output}
+                    s2 = set_output(state, sid, output_payload)
+                    emit_recorded_step(s1, sid, output_payload)
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_if_else_fn(nid, ntype, nlabel, nconfig))
@@ -432,20 +459,40 @@ def build_graph(
 
                     loop_child_step_seq = 0
 
-                    def append_loop_child_step(cur_state: AgentState, iteration: int, ref_node_id: str, step_type: str, step_label: str, status: str) -> AgentState:
+                    def start_loop_child_step(cur_state: AgentState, iteration: int, ref_node_id: str, step_type: str, step_label: str) -> tuple[AgentState, str]:
                         nonlocal loop_child_step_seq
                         loop_child_step_seq += 1
                         steps = list(cur_state.get("execution_steps", []))
                         now = datetime.now(timezone.utc).isoformat()
-                        steps.append({
-                            "node_id": f"{sid}_iter{iteration}_{ref_node_id}_{loop_child_step_seq}",
+                        step_id = f"{sid}_iter{iteration}_{ref_node_id}_{loop_child_step_seq}"
+                        step_payload = {
+                            "node_id": step_id,
                             "ref_node_id": ref_node_id,
                             "type": step_type,
                             "label": f"Iter {iteration + 1} · {step_label}",
-                            "status": status,
+                            "status": "running",
                             "started_at": now,
-                            "completed_at": now,
-                        })
+                        }
+                        steps.append(step_payload)
+                        if step_callback:
+                            step_callback(dict(step_payload))
+                        return {**cur_state, "execution_steps": steps}, step_id
+
+                    def finish_loop_child_step(cur_state: AgentState, step_id: str, status: str, output: object | None = None) -> AgentState:
+                        steps = list(cur_state.get("execution_steps", []))
+                        now = datetime.now(timezone.utc).isoformat()
+                        streamed_payload = None
+                        for step in steps:
+                            if step.get("node_id") != step_id:
+                                continue
+                            step["status"] = status
+                            step["completed_at"] = now
+                            streamed_payload = dict(step)
+                            break
+                        if step_callback and streamed_payload is not None:
+                            if output is not None:
+                                streamed_payload["output"] = output
+                            step_callback(streamed_payload)
                         return {**cur_state, "execution_steps": steps}
 
                     def execute_child_node(cur_state: AgentState, cid: str, iteration: int) -> tuple[AgentState, str | None]:
@@ -455,6 +502,8 @@ def build_graph(
                         ctypes = child.type or "pass"
                         ccfg = child.config or {}
                         clabel = child.label or ctypes
+
+                        cur_state, step_id = start_loop_child_step(cur_state, iteration, cid, ctypes, clabel)
 
                         try:
                             if ctypes == "llm":
@@ -466,8 +515,9 @@ def build_graph(
                                 resp = llm.invoke(msgs)
                                 output_content = resp.content if hasattr(resp, "content") else str(resp)
                                 cur_state["messages"] = [resp]
-                                cur_state = {**cur_state, **set_output(cur_state, cid, {"text": output_content})}
-                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
+                                output_payload = {"text": output_content}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                                cur_state = finish_loop_child_step(cur_state, step_id, "success", output_payload)
                                 return cur_state, None
 
                             if ctypes == "http":
@@ -489,8 +539,9 @@ def build_graph(
                                         data = r.json() if "application/json" in r.headers.get("content-type", "") else r.text
                                 except Exception as e2:
                                     data = {"error": str(e2)}
-                                cur_state = {**cur_state, **set_output(cur_state, cid, data if isinstance(data, dict) else {"result": data})}
-                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")
+                                output_payload = data if isinstance(data, dict) else {"result": data}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                                cur_state = finish_loop_child_step(cur_state, step_id, "failed" if isinstance(data, dict) and "error" in data else "success", output_payload)
                                 return cur_state, None
 
                             if ctypes == "code":
@@ -517,8 +568,9 @@ def build_graph(
                                         pass
                                 except Exception as e3:
                                     output = str(e3)
-                                cur_state = {**cur_state, **set_output(cur_state, cid, {"result": output})}
-                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
+                                output_payload = {"result": output}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                                cur_state = finish_loop_child_step(cur_state, step_id, "success", output_payload)
                                 return cur_state, None
 
                             if ctypes == "if_else":
@@ -533,17 +585,20 @@ def build_graph(
                                 if not matched:
                                     matched = ccfg.get("default_case_id", "default")
                                 matched_label = resolve_case_label(cid, matched)
-                                cur_state = {**cur_state, **set_output(cur_state, cid, {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output})}
-                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
+                                output_payload = {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                                cur_state = finish_loop_child_step(cur_state, step_id, "success", output_payload)
                                 return cur_state, matched
 
-                            cur_state = {**cur_state, **set_output(cur_state, cid, {"status": "ok"})}
-                            cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
+                            output_payload = {"status": "ok"}
+                            cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                            cur_state = finish_loop_child_step(cur_state, step_id, "success", output_payload)
                             return cur_state, None
 
                         except Exception as ex:
-                            cur_state = {**cur_state, **set_output(cur_state, cid, {"error": str(ex)})}
-                            cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "failed")
+                            output_payload = {"error": str(ex)}
+                            cur_state = {**cur_state, **set_output(cur_state, cid, output_payload)}
+                            cur_state = finish_loop_child_step(cur_state, step_id, "failed", output_payload)
                             return cur_state, None
 
                     def next_child_nodes(cid: str, matched_case: str | None) -> list[str]:

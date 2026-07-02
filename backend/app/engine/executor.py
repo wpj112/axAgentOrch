@@ -1,5 +1,6 @@
 import uuid
 import json
+import asyncio
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
@@ -108,39 +109,51 @@ async def run_agent_stream(
     edges: list,
 ) -> AsyncGenerator[str, None]:
     """Stream per-node execution steps via SSE."""
+    queue: asyncio.Queue[dict] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def emit_step(step_payload: dict) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, {'event': 'step', **step_payload})
+
+    def run_graph() -> None:
+        try:
+            graph = build_graph(
+                nodes,
+                edges,
+                model=model,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=temperature,
+                step_callback=emit_step,
+            )
+            result = graph.invoke({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}})
+            loop.call_soon_threadsafe(queue.put_nowait, {'event': '__done__', 'state': result})
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {'event': 'error', 'message': str(exc)})
+
+    runner = asyncio.create_task(asyncio.to_thread(run_graph))
+
     try:
-        graph = build_graph(nodes, edges, model=model, api_key=api_key, base_url=base_url, temperature=temperature)
-
-        last_steps: list[dict] = []
-        final_result = ""
-        async for event in graph.astream({"messages": [], "input": input_data, "execution_steps": [], "node_outputs": {}, "tool_results": {}}):
-            for node_id, state in event.items():
-                steps = state.get("execution_steps", [])
-                candidate_result = _extract_result_text(state)
-                if candidate_result:
-                    final_result = candidate_result
-                if steps != last_steps:
-                    new_steps = [s for s in steps if s not in last_steps]
-                    last_steps = steps
-                    node_outputs = state.get("node_outputs", {}) or {}
-                    for step in new_steps:
-                        step_node_id = step.get("node_id")
-                        step_ref_node_id = step.get("ref_node_id") or step_node_id
-                        step_payload = {'event': 'step', **step}
-                        if step_ref_node_id in node_outputs:
-                            step_payload['output'] = node_outputs.get(step_ref_node_id)
-                        yield f"data: {json.dumps(step_payload, ensure_ascii=False)}\n\n"
-
-        final_outputs = []
-        node_outputs = state.get("node_outputs", {}) or {}
-        for step in last_steps:
-            step_payload = dict(step)
-            step_node_id = step.get("node_id")
-            step_ref_node_id = step.get("ref_node_id") or step_node_id
-            if step_ref_node_id in node_outputs:
-                step_payload['output'] = node_outputs.get(step_ref_node_id)
-            final_outputs.append(step_payload)
-        yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': final_outputs, 'result': final_result}, ensure_ascii=False)}\n\n"
-
-    except Exception as e:
-        yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+        while True:
+            event = await queue.get()
+            if event.get('event') == 'step':
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                continue
+            if event.get('event') == '__done__':
+                state = event.get('state', {}) or {}
+                final_result = _extract_result_text(state)
+                final_outputs = []
+                node_outputs = state.get("node_outputs", {}) or {}
+                for step in state.get("execution_steps", []):
+                    step_payload = dict(step)
+                    step_ref_node_id = step.get("ref_node_id") or step.get("node_id")
+                    if step_ref_node_id in node_outputs:
+                        step_payload['output'] = node_outputs.get(step_ref_node_id)
+                    final_outputs.append(step_payload)
+                yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': final_outputs, 'result': final_result}, ensure_ascii=False)}\n\n"
+                break
+            if event.get('event') == 'error':
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                break
+    finally:
+        await runner
