@@ -218,13 +218,13 @@ IfElseNode 配置：
 
 ### 循环 (LoopNode)
 
-循环节点，执行子流程并在每轮结束后按条件判断是否继续。
+循环节点，执行子流程并在每轮结束后按结束条件判断是否退出。
 
 **1. 拖入「循环」节点** → 双击配置：
 ```json
 {
   "max_iterations": 5,
-  "condition": {"variable_selector": ["judge_id", "conf"], "operator": "lt", "value": 0.8},
+  "end_condition": {"variable_selector": ["judge_id", "conf"], "operator": "gte", "value": 0.8},
   "start_node_id": "<循环体首节点ID>",
   "end_node_id": "<循环体尾节点ID>"
 }
@@ -236,7 +236,7 @@ IfElseNode 配置：
 
 **4. 出口边**双击命名为 `loop_exit`（底层仍兼容 `source_handle="loop_exit"`）
 
-执行器会在每轮结束后用 `condition` 去判断 `node_outputs`；条件不满足时退出循环并走 `loop_exit`。
+执行器会在每轮结束后用 `end_condition` 去判断 `node_outputs`；条件满足时退出循环并走 `loop_exit`。
 
 ### 当前实现注意
 
@@ -244,6 +244,78 @@ IfElseNode 配置：
 - 条件判断读的是 `node_outputs`，不是直接读取 `input.message`。
 - 如果要根据用户输入分流，推荐先用一个 `llm` 或 `code` 节点把输入整理成明确字段，再接 `if_else`。
 - 当前前端编辑器还没有把 `source_handle` / `parent_id` 做成完整可视化配置项；底层执行器和 schema 已支持，但 UI 和保存链路还需要进一步打通。
+
+## 编排实现概要
+
+### 核心结构
+
+一个智能体由三部分组成：
+
+- `Agent`：智能体本身
+- `Node`：节点，包含 `type`、`label`、`config`
+- `Edge`：连线，包含 `source_node_id`、`target_node_id`，以及可选的 `source_handle`
+
+运行时统一状态为：
+
+- `input`：本次运行输入
+- `messages`：LLM 消息上下文
+- `tool_results`：工具类节点结果集合
+- `node_outputs`：各节点结构化输出
+- `execution_steps`：执行日志
+
+### 执行模型
+
+后端会把一个智能体编译成一张 `LangGraph StateGraph`：
+
+- 主流程节点进入主图
+- `loop` 子节点不进入主图，而是在 `loop` 节点内部执行
+- 边主要负责顺序和路由，数据主要写入共享状态
+
+### 节点输出约定
+
+常见节点输出格式：
+
+- `start` / `end`：`{"status": "ok"}`
+- `llm`：`{"text": "..."}`
+- `http`：接口 JSON 响应或 `{"result": "..."}`
+- `code`：`{"result": "..."}`
+- `if_else`：`{"matched_case": "...", "matched_case_key": "..."}`
+- `loop`：`{"iterations": N}`
+
+### 变量传递
+
+当前实现不是沿边直接传对象，而是通过共享状态传递：
+
+- 每个节点执行后，把结果写入 `node_outputs[node_id]`
+- 后续节点通过 `variable_selector` 读取需要的值
+
+例如：
+
+```json
+["node_id", "text"]
+```
+
+表示读取：
+
+```python
+node_outputs["node_id"]["text"]
+```
+
+### LLM 节点
+
+LLM 节点会基于当前全局状态重新构造提示词，主要上下文来源包括：
+
+- `input`
+- `node_outputs`
+- `tool_results`
+- 节点自身 `system_prompt`
+
+因此，前面节点的输出会持续影响后续 LLM 节点。
+
+### If-Else 与 Loop
+
+- `if_else`：条件写在节点 `config.cases` 中，分支去向由边的 `source_handle` / 边名称决定
+- `loop`：至少先执行 1 轮；每轮结束后检查 `end_condition`，满足则退出，否则继续下一轮
 
 ## 第三方调用
 
