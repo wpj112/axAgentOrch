@@ -393,13 +393,20 @@ def build_graph(
                         return {**s1, **s2}
 
                     child_map = {str(c.id): c for c in child_nodes}
+                    child_route_map: dict[str, dict[str, str]] = {}
+                    child_next: dict[str, str] = {}
                     child_in = {str(c.id): 0 for c in child_nodes}
                     child_out = {str(c.id): [] for c in child_nodes}
                     for e in child_edges:
                         src = str(e.source_node_id)
                         tgt = str(e.target_node_id)
+                        src_node = child_map.get(src)
                         child_in[tgt] = child_in.get(tgt, 0) + 1
                         child_out.setdefault(src, []).append(tgt)
+                        if src_node and src_node.type == "if_else" and e.source_handle:
+                            child_route_map.setdefault(src, {})[e.source_handle] = tgt
+                        elif not e.source_handle:
+                            child_next[src] = tgt
                     child_order = []
                     cq = [cid for cid, d in child_in.items() if d == 0]
                     while cq:
@@ -417,6 +424,11 @@ def build_graph(
                         if start_idx <= end_idx:
                             child_order = child_order[start_idx:end_idx + 1]
 
+                    if not child_order:
+                        s1 = mark_step(state, sid, stype, slabel, "success")
+                        s2 = set_output(state, sid, {"iterations": 0})
+                        return {**s1, **s2}
+
                     executed_iterations = 0
                     for iteration in range(max_iter):
                         if iteration > 0 and condition_cfg:
@@ -433,10 +445,12 @@ def build_graph(
                             "started_at": datetime.now(timezone.utc).isoformat(),
                         })
 
-                        for cid in child_order:
-                            child = child_map.get(cid)
-                            if not child:
-                                continue
+                        # Walk through child nodes following edges (supports if_else branching)
+                        visited: set[str] = set()
+                        cid = child_order[0]
+                        while cid and cid not in visited and cid in child_map:
+                            visited.add(cid)
+                            child = child_map[cid]
                             ctypes = child.type or "pass"
                             ccfg = child.config or {}
                             clabel = child.label or ctypes
@@ -453,6 +467,7 @@ def build_graph(
                                     state["messages"] = [resp]
                                     state = {**state, **set_output(state, cid, {"text": output_content})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
+                                    cid = child_next.get(cid)
 
                                 elif ctypes == "http":
                                     url = ccfg.get("url", "")
@@ -475,6 +490,7 @@ def build_graph(
                                         data = {"error": str(e2)}
                                     state = {**state, **set_output(state, cid, data if isinstance(data, dict) else {"result": data})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")}
+                                    cid = child_next.get(cid)
 
                                 elif ctypes == "code":
                                     lang = ccfg.get("language", "python")
@@ -502,14 +518,32 @@ def build_graph(
                                         output = str(e3)
                                     state = {**state, **set_output(state, cid, {"result": output})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
+                                    cid = child_next.get(cid)
+
+                                elif ctypes == "if_else":
+                                    condition_context, _ = build_condition_context(state, cid)
+                                    cases = resolve_if_cases(ccfg)
+                                    matched = None
+                                    for case in cases:
+                                        conds = case.get("conditions", [])
+                                        if evaluate_conditions(conds, condition_context):
+                                            matched = case.get("case_id", "")
+                                            break
+                                    if not matched:
+                                        matched = ccfg.get("default_case_id", "default")
+                                    state = {**state, **set_output(state, cid, {"matched_case": matched})}
+                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
+                                    cid = child_route_map.get(cid, {}).get(matched)
 
                                 else:
                                     state = {**state, **set_output(state, cid, {"status": "ok"})}
                                     state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
+                                    cid = child_next.get(cid)
 
                             except Exception as ex:
                                 state = {**state, **set_output(state, cid, {"error": str(ex)})}
                                 state = {**state, **mark_step(state, cid, ctypes, clabel, "failed")}
+                                cid = child_next.get(cid)
 
                         steps = list(state.get("execution_steps", []))
                         now = datetime.now(timezone.utc).isoformat()
