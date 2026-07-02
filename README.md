@@ -212,7 +212,7 @@ IfElseNode 配置：
          ── 边名称="default" → [End]
 ```
 
-支持操作符：`is` / `not_empty` / `lt` / `gte`
+支持操作符：`is` / `contains` / `starts_with` / `ends_with` / `not_empty` / `lt` / `gte`
 
 ---
 

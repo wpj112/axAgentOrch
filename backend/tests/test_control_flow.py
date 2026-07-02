@@ -95,7 +95,8 @@ def test_if_else_can_read_direct_upstream_output():
 
     result = graph.invoke({'messages': [], 'input': {}, 'execution_steps': [], 'node_outputs': {}, 'tool_results': {}})
     router_output = result['node_outputs'][str(router.id)]
-    assert router_output['matched_case'] == 'order'
+    assert router_output['matched_case'] == 'Order End'
+    assert router_output['matched_case_key'] == 'order'
     assert router_output['upstream_output']['result'] == 'order_search'
 
 
@@ -187,6 +188,18 @@ def test_condition_evaluator():
         {'a': {'b': 'hello'}}
     )
     assert evaluate_conditions(
+        [{'variable_selector': ['a', 'b'], 'operator': 'contains', 'value': 'ell'}],
+        {'a': {'b': 'hello'}}
+    )
+    assert evaluate_conditions(
+        [{'variable_selector': ['a', 'b'], 'operator': 'starts_with', 'value': 'he'}],
+        {'a': {'b': 'hello'}}
+    )
+    assert evaluate_conditions(
+        [{'variable_selector': ['a', 'b'], 'operator': 'ends_with', 'value': 'lo'}],
+        {'a': {'b': 'hello'}}
+    )
+    assert evaluate_conditions(
         [{'variable_selector': ['a', 'b'], 'operator': 'not_empty'}],
         {'a': {'b': 'value'}}
     )
@@ -201,6 +214,10 @@ def test_condition_evaluator():
     assert not evaluate_conditions(
         [{'variable_selector': ['x'], 'operator': 'lt', 'value': 3}],
         {'x': 5}
+    )
+    assert not evaluate_conditions(
+        [{'variable_selector': ['a', 'b'], 'operator': 'contains', 'value': 'xyz'}],
+        {'a': {'b': 'hello'}}
     )
 
 
@@ -372,3 +389,116 @@ def test_loop_llm_rebuilds_prompt_each_iteration(monkeypatch):
         assert 'Previous node outputs:' in prompt_messages[1].content
         assert 'User request:' in prompt_messages[1].content
     assert '0.5' in captured_messages[1][1].content
+
+
+
+def test_loop_if_else_executes_only_matched_branch():
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 1,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('0.5')",
+    }, parent_id=loop.id)
+    router = make_node('if_else', 'Router', {
+        'cases': [
+            {'case_id': 'retry', 'conditions': [{'variable_selector': [str(score.id), 'result'], 'operator': 'lt', 'value': 0.8}]},
+            {'case_id': 'done', 'conditions': [{'variable_selector': [str(score.id), 'result'], 'operator': 'gte', 'value': 0.8}]},
+        ],
+        'default_case_id': 'default',
+    }, parent_id=loop.id)
+    retry_node = make_node('code', 'Retry', {
+        'language': 'python',
+        'source_code': "print('retry-branch')",
+    }, parent_id=loop.id)
+    done_node = make_node('code', 'Done', {
+        'language': 'python',
+        'source_code': "print('done-branch')",
+    }, parent_id=loop.id)
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, router, retry_node, done_node, end],
+        [
+            make_edge(start, loop),
+            make_edge(score, router),
+            make_edge(router, retry_node, source_handle='retry'),
+            make_edge(router, done_node, source_handle='done'),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    assert result['node_outputs'][str(router.id)]['matched_case'] == 'Retry'
+    assert result['node_outputs'][str(router.id)]['matched_case_key'] == 'retry'
+    assert result['node_outputs'][str(retry_node.id)]['result'] == 'retry-branch'
+    assert str(done_node.id) not in result['node_outputs']
+
+
+def test_loop_does_not_execute_unreached_nodes_after_if_else_branch():
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 1,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('1.0')",
+    }, parent_id=loop.id)
+    router = make_node('if_else', 'Router', {
+        'cases': [
+            {'case_id': 'done', 'conditions': [{'variable_selector': [str(score.id), 'result'], 'operator': 'gte', 'value': 0.8}]},
+        ],
+        'default_case_id': 'default',
+    }, parent_id=loop.id)
+    done_node = make_node('code', 'Done', {
+        'language': 'python',
+        'source_code': "print('stop-now')",
+    }, parent_id=loop.id)
+    stray_node = make_node('code', 'Stray', {
+        'language': 'python',
+        'source_code': "print('should-not-run')",
+    }, parent_id=loop.id)
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, router, done_node, stray_node, end],
+        [
+            make_edge(start, loop),
+            make_edge(score, router),
+            make_edge(router, done_node, source_handle='done'),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    assert result['node_outputs'][str(router.id)]['matched_case'] == 'Done'
+    assert result['node_outputs'][str(router.id)]['matched_case_key'] == 'done'
+    assert result['node_outputs'][str(done_node.id)]['result'] == 'stop-now'
+    assert str(stray_node.id) not in result['node_outputs']

@@ -1,10 +1,13 @@
 """Condition evaluator for IfElseNode and LoopNode.
 
 Operators:
-  is        — actual value equals target value
-  not_empty — actual value is not None/empty
-  lt        — actual value is less than target value
-  gte       — actual value is greater than or equal to target value
+  is          — actual value equals target value
+  not_empty   — actual value is not None/empty
+  contains    — actual string contains target text
+  starts_with — actual string starts with target text
+  ends_with   — actual string ends with target text
+  lt          — actual value is less than target value
+  gte         — actual value is greater than or equal to target value
 """
 
 import numbers
@@ -35,6 +38,15 @@ def _evaluate_single(cond: dict, node_outputs: dict) -> bool:
 
     if op == "is":
         return str(actual) == str(target)
+
+    if op == "contains":
+        return str(target) in str(actual) if actual is not None and target is not None else False
+
+    if op == "starts_with":
+        return str(actual).startswith(str(target)) if actual is not None and target is not None else False
+
+    if op == "ends_with":
+        return str(actual).endswith(str(target)) if actual is not None and target is not None else False
 
     # Numeric comparisons
     try:

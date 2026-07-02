@@ -2,14 +2,22 @@ import { useEffect } from 'react'
 import type { AgentNode } from '../api/client'
 import NodeForm from './NodeForm'
 
+interface EdgeLike {
+  sourceIdx: number
+  targetIdx: number
+  sourceHandle?: string | null
+  condition?: string | null
+}
+
 interface ConfigPanelProps {
   node: AgentNode | null
   allNodes: AgentNode[]
-  onSave: (node: AgentNode) => void
+  edges: EdgeLike[]
+  onSave: (node: AgentNode, edgeUpdates?: EdgeLike[]) => void
   onClose: () => void
 }
 
-function ConfigPanel({ node, allNodes, onSave, onClose }: ConfigPanelProps) {
+function ConfigPanel({ node, allNodes, edges, onSave, onClose }: ConfigPanelProps) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -47,8 +55,9 @@ function ConfigPanel({ node, allNodes, onSave, onClose }: ConfigPanelProps) {
           key={node.id || node.label}
           initial={node}
           allNodes={allNodes}
-          onSave={(updated) => {
-            onSave(updated)
+          edges={edges}
+          onSave={(updated, edgeUpdates) => {
+            onSave(updated, edgeUpdates)
             onClose()
           }}
           onCancel={onClose}

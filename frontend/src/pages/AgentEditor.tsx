@@ -239,12 +239,14 @@ ${detail}`)
     }
   }
 
-  const handleSaveNodeConfig = (node: AgentNode) => {
+  const handleSaveNodeConfig = (node: AgentNode, edgeUpdates?: EdgeDef[]) => {
     if (selectedNodeIdx === null) return
     const newNodes = [...nodes]
     newNodes[selectedNodeIdx] = { ...newNodes[selectedNodeIdx], ...node }
+    const nextEdges = edgeUpdates || edges
     setNodes(newNodes)
-    doSave(name, description, newNodes, edges, llmModel, llmTemperature)
+    if (edgeUpdates) setEdges(edgeUpdates)
+    doSave(name, description, newNodes, nextEdges, llmModel, llmTemperature)
   }
 
   const currentExecutionStep = executionSteps && executionSteps.length > 0
@@ -501,6 +503,7 @@ ${detail}`)
       <ConfigPanel
         node={selectedNodeIdx === null ? null : nodes[selectedNodeIdx]}
         allNodes={nodes}
+        edges={edges}
         onSave={handleSaveNodeConfig}
         onClose={() => setSelectedNodeIdx(null)}
       />

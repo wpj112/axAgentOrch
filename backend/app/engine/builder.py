@@ -147,6 +147,13 @@ def build_graph(
         prompt_parts.append(HumanMessage(content=prompt_text))
         return prompt_parts
 
+    def resolve_case_label(route_owner_id: str, case_id: str) -> str:
+        if not case_id:
+            return case_id
+        target_id = handle_edges.get(route_owner_id, {}).get(case_id)
+        target_node = node_by_id.get(str(target_id)) if target_id else None
+        return (target_node.label or case_id) if target_node else case_id
+
     def resolve_if_cases(if_config: dict) -> list[dict]:
         cases = if_config.get("cases", [])
         if cases:
@@ -353,8 +360,9 @@ def build_graph(
                             break
                     if not matched:
                         matched = if_config.get("default_case_id", "default")
+                    matched_label = resolve_case_label(sid, matched)
                     s1 = mark_step(state, sid, stype, slabel, "success")
-                    s2 = set_output(state, sid, {"matched_case": matched, "upstream_output": upstream_output})
+                    s2 = set_output(state, sid, {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output})
                     return {**s1, **s2}
                 return fn
             graph.add_node(nid, make_if_else_fn(nid, ntype, nlabel, nconfig))
@@ -363,7 +371,7 @@ def build_graph(
             def make_if_route(_nid=nid):
                 def route(state):
                     outputs = state.get("node_outputs", {})
-                    matched = outputs.get(_nid, {}).get("matched_case", "default")
+                    matched = outputs.get(_nid, {}).get("matched_case_key") or outputs.get(_nid, {}).get("matched_case", "default")
                     return matched
                 return route
             hmap = handle_edges.get(nid, {})
@@ -383,9 +391,11 @@ def build_graph(
                     end_node_id = str(loop_config.get("end_node_id", ""))
 
                     child_nodes = [n for n in nodes if str(getattr(n, "parent_id", "")) == sid]
-                    child_edges = [e for e in edges
-                                   if str(e.source_node_id) in [str(c.id) for c in child_nodes]
-                                   and str(e.target_node_id) in [str(c.id) for c in child_nodes]]
+                    child_ids = [str(c.id) for c in child_nodes]
+                    child_edges = [
+                        e for e in edges
+                        if str(e.source_node_id) in child_ids and str(e.target_node_id) in child_ids
+                    ]
 
                     if not child_nodes:
                         s1 = mark_step(state, sid, stype, slabel, "success")
@@ -393,41 +403,157 @@ def build_graph(
                         return {**s1, **s2}
 
                     child_map = {str(c.id): c for c in child_nodes}
-                    child_route_map: dict[str, dict[str, str]] = {}
-                    child_next: dict[str, str] = {}
                     child_in = {str(c.id): 0 for c in child_nodes}
                     child_out = {str(c.id): [] for c in child_nodes}
+                    child_handle_routes: dict[str, dict[str, str]] = {}
                     for e in child_edges:
                         src = str(e.source_node_id)
                         tgt = str(e.target_node_id)
                         src_node = child_map.get(src)
+                        route_key = e.source_handle or ""
+                        if not route_key and src_node and src_node.type == "if_else":
+                            route_key = (e.condition or "").strip()
                         child_in[tgt] = child_in.get(tgt, 0) + 1
                         child_out.setdefault(src, []).append(tgt)
-                        if src_node and src_node.type == "if_else" and e.source_handle:
-                            child_route_map.setdefault(src, {})[e.source_handle] = tgt
-                        elif not e.source_handle:
-                            child_next[src] = tgt
+                        if route_key:
+                            child_handle_routes.setdefault(src, {})[route_key] = tgt
                     child_order = []
-                    cq = [cid for cid, d in child_in.items() if d == 0]
+                    child_in_work = dict(child_in)
+                    cq = [cid for cid, d in child_in_work.items() if d == 0]
                     while cq:
                         cid = cq.pop(0)
                         child_order.append(cid)
                         for nxt in child_out.get(cid, []):
-                            child_in[nxt] -= 1
-                            if child_in[nxt] == 0:
+                            child_in_work[nxt] -= 1
+                            if child_in_work[nxt] == 0:
                                 cq.append(nxt)
+                    child_rank = {cid: idx for idx, cid in enumerate(child_order)}
 
-                    # Filter to start→end range if specified
-                    if start_node_id in child_map and end_node_id in child_map and start_node_id != "" and end_node_id != "":
-                        start_idx = next((i for i, cid in enumerate(child_order) if cid == start_node_id), 0)
-                        end_idx = next((i for i, cid in enumerate(child_order) if cid == end_node_id), len(child_order) - 1)
-                        if start_idx <= end_idx:
-                            child_order = child_order[start_idx:end_idx + 1]
+                    def execute_child_node(cur_state: AgentState, cid: str) -> tuple[AgentState, str | None]:
+                        child = child_map.get(cid)
+                        if not child:
+                            return cur_state, None
+                        ctypes = child.type or "pass"
+                        ccfg = child.config or {}
+                        clabel = child.label or ctypes
 
-                    if not child_order:
-                        s1 = mark_step(state, sid, stype, slabel, "success")
-                        s2 = set_output(state, sid, {"iterations": 0})
-                        return {**s1, **s2}
+                        try:
+                            if ctypes == "llm":
+                                input_data = cur_state.get("input", {})
+                                tool_results = cur_state.get("tool_results", {})
+                                node_outputs = cur_state.get("node_outputs", {})
+                                system_text = ccfg.get("system_prompt", "")
+                                msgs = build_llm_messages(system_text, input_data, tool_results, node_outputs)
+                                resp = llm.invoke(msgs)
+                                output_content = resp.content if hasattr(resp, "content") else str(resp)
+                                cur_state["messages"] = [resp]
+                                cur_state = {**cur_state, **set_output(cur_state, cid, {"text": output_content})}
+                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                                return cur_state, None
+
+                            if ctypes == "http":
+                                url = ccfg.get("url", "")
+                                method = ccfg.get("method", "GET")
+                                try:
+                                    headers = json.loads(ccfg.get("headers", "{}")) if isinstance(ccfg.get("headers", ""), str) else ccfg.get("headers", {})
+                                except Exception:
+                                    headers = {}
+                                try:
+                                    body = json.loads(ccfg.get("body", "{}")) if isinstance(ccfg.get("body", ""), str) else ccfg.get("body", {})
+                                except Exception:
+                                    body = {}
+                                try:
+                                    import httpx
+                                    with httpx.Client(timeout=30) as client:
+                                        r = client.request(method=method, url=url, headers=headers, json=body if method.upper() in ("POST", "PUT", "PATCH") else None)
+                                        r.raise_for_status()
+                                        data = r.json() if "application/json" in r.headers.get("content-type", "") else r.text
+                                except Exception as e2:
+                                    data = {"error": str(e2)}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, data if isinstance(data, dict) else {"result": data})}
+                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")}
+                                return cur_state, None
+
+                            if ctypes == "code":
+                                lang = ccfg.get("language", "python")
+                                source = ccfg.get("source_code", "")
+                                try:
+                                    import subprocess, tempfile, os
+                                    with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
+                                        tx_ctx = cur_state.get("tool_results", {})
+                                        if lang == "python":
+                                            payload = json.dumps(tx_ctx, ensure_ascii=False)
+                                            f.write("import json\n")
+                                            f.write(f"_ctx = json.loads({payload!r})\n")
+                                        f.write(source)
+                                        tmp = f.name
+                                    if lang == "python":
+                                        subr = subprocess.run(["python", tmp], capture_output=True, text=True, timeout=15)
+                                    else:
+                                        subr = subprocess.run(["node", tmp], capture_output=True, text=True, timeout=15)
+                                    output = subr.stdout.strip() if subr.returncode == 0 else subr.stderr.strip()
+                                    try:
+                                        os.unlink(tmp)
+                                    except Exception:
+                                        pass
+                                except Exception as e3:
+                                    output = str(e3)
+                                cur_state = {**cur_state, **set_output(cur_state, cid, {"result": output})}
+                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                                return cur_state, None
+
+                            if ctypes == "if_else":
+                                condition_context, upstream_output = build_condition_context(cur_state, cid)
+                                cases = resolve_if_cases(ccfg)
+                                matched = None
+                                for case in cases:
+                                    conds = case.get("conditions", [])
+                                    if evaluate_conditions(conds, condition_context):
+                                        matched = case.get("case_id", "")
+                                        break
+                                if not matched:
+                                    matched = ccfg.get("default_case_id", "default")
+                                matched_label = resolve_case_label(cid, matched)
+                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                                cur_state = {**cur_state, **set_output(cur_state, cid, {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output})}
+                                return cur_state, matched
+
+                            cur_state = {**cur_state, **set_output(cur_state, cid, {"status": "ok"})}
+                            cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                            return cur_state, None
+
+                        except Exception as ex:
+                            cur_state = {**cur_state, **set_output(cur_state, cid, {"error": str(ex)})}
+                            cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "failed")}
+                            return cur_state, None
+
+                    def next_child_nodes(cid: str, matched_case: str | None) -> list[str]:
+                        if cid == end_node_id and end_node_id:
+                            return []
+                        child = child_map.get(cid)
+                        if child and child.type == "if_else":
+                            route_map = child_handle_routes.get(cid, {})
+                            target = route_map.get(matched_case or "")
+                            if target:
+                                return [target]
+                            default_target = route_map.get("default")
+                            if default_target:
+                                return [default_target]
+                            # No route for matched case — skip to first non-branch node in topo order
+                            branch_targets = set(route_map.values())
+                            idx = child_rank.get(cid, -1)
+                            for i in range(idx + 1, len(child_order)):
+                                if child_order[i] not in branch_targets:
+                                    return [child_order[i]]
+                            return []
+                        return sorted(child_out.get(cid, []), key=lambda nxt: child_rank.get(nxt, 10**9))
+
+                    entry_nodes = [cid for cid, degree in child_in.items() if degree == 0]
+                    entry_nodes = sorted(entry_nodes, key=lambda cid: child_rank.get(cid, 10**9))
+                    if start_node_id in child_map:
+                        entry_nodes = [start_node_id]
+                    elif entry_nodes:
+                        entry_nodes = [entry_nodes[0]]
 
                     executed_iterations = 0
                     for iteration in range(max_iter):
@@ -445,105 +571,18 @@ def build_graph(
                             "started_at": datetime.now(timezone.utc).isoformat(),
                         })
 
-                        # Walk through child nodes following edges (supports if_else branching)
-                        visited: set[str] = set()
-                        cid = child_order[0]
-                        while cid and cid not in visited and cid in child_map:
-                            visited.add(cid)
-                            child = child_map[cid]
-                            ctypes = child.type or "pass"
-                            ccfg = child.config or {}
-                            clabel = child.label or ctypes
-
-                            try:
-                                if ctypes == "llm":
-                                    input_data = state.get("input", {})
-                                    tool_results = state.get("tool_results", {})
-                                    node_outputs = state.get("node_outputs", {})
-                                    system_text = ccfg.get("system_prompt", "")
-                                    msgs = build_llm_messages(system_text, input_data, tool_results, node_outputs)
-                                    resp = llm.invoke(msgs)
-                                    output_content = resp.content if hasattr(resp, "content") else str(resp)
-                                    state["messages"] = [resp]
-                                    state = {**state, **set_output(state, cid, {"text": output_content})}
-                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
-                                    cid = child_next.get(cid)
-
-                                elif ctypes == "http":
-                                    url = ccfg.get("url", "")
-                                    method = ccfg.get("method", "GET")
-                                    try:
-                                        headers = json.loads(ccfg.get("headers", "{}")) if isinstance(ccfg.get("headers", ""), str) else ccfg.get("headers", {})
-                                    except Exception:
-                                        headers = {}
-                                    try:
-                                        body = json.loads(ccfg.get("body", "{}")) if isinstance(ccfg.get("body", ""), str) else ccfg.get("body", {})
-                                    except Exception:
-                                        body = {}
-                                    try:
-                                        import httpx
-                                        with httpx.Client(timeout=30) as client:
-                                            r = client.request(method=method, url=url, headers=headers, json=body if method.upper() in ("POST", "PUT", "PATCH") else None)
-                                            r.raise_for_status()
-                                            data = r.json() if "application/json" in r.headers.get("content-type", "") else r.text
-                                    except Exception as e2:
-                                        data = {"error": str(e2)}
-                                    state = {**state, **set_output(state, cid, data if isinstance(data, dict) else {"result": data})}
-                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")}
-                                    cid = child_next.get(cid)
-
-                                elif ctypes == "code":
-                                    lang = ccfg.get("language", "python")
-                                    source = ccfg.get("source_code", "")
-                                    try:
-                                        import subprocess, tempfile, os
-                                        with tempfile.NamedTemporaryFile(mode="w", suffix=f".{lang}", delete=False) as f:
-                                            tx_ctx = state.get("tool_results", {})
-                                            if lang == "python":
-                                                payload = json.dumps(tx_ctx, ensure_ascii=False)
-                                                f.write("import json\n")
-                                                f.write(f"_ctx = json.loads({payload!r})\n")
-                                            f.write(source)
-                                            tmp = f.name
-                                        if lang == "python":
-                                            subr = subprocess.run(["python", tmp], capture_output=True, text=True, timeout=15)
-                                        else:
-                                            subr = subprocess.run(["node", tmp], capture_output=True, text=True, timeout=15)
-                                        output = subr.stdout.strip() if subr.returncode == 0 else subr.stderr.strip()
-                                        try:
-                                            os.unlink(tmp)
-                                        except Exception:
-                                            pass
-                                    except Exception as e3:
-                                        output = str(e3)
-                                    state = {**state, **set_output(state, cid, {"result": output})}
-                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
-                                    cid = child_next.get(cid)
-
-                                elif ctypes == "if_else":
-                                    condition_context, _ = build_condition_context(state, cid)
-                                    cases = resolve_if_cases(ccfg)
-                                    matched = None
-                                    for case in cases:
-                                        conds = case.get("conditions", [])
-                                        if evaluate_conditions(conds, condition_context):
-                                            matched = case.get("case_id", "")
-                                            break
-                                    if not matched:
-                                        matched = ccfg.get("default_case_id", "default")
-                                    state = {**state, **set_output(state, cid, {"matched_case": matched})}
-                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
-                                    cid = child_route_map.get(cid, {}).get(matched)
-
-                                else:
-                                    state = {**state, **set_output(state, cid, {"status": "ok"})}
-                                    state = {**state, **mark_step(state, cid, ctypes, clabel, "success")}
-                                    cid = child_next.get(cid)
-
-                            except Exception as ex:
-                                state = {**state, **set_output(state, cid, {"error": str(ex)})}
-                                state = {**state, **mark_step(state, cid, ctypes, clabel, "failed")}
-                                cid = child_next.get(cid)
+                        queue = list(entry_nodes)
+                        seen: set[str] = set()
+                        while queue:
+                            cid = queue.pop(0)
+                            if cid in seen:
+                                continue
+                            seen.add(cid)
+                            state, matched_case = execute_child_node(state, cid)
+                            next_nodes = next_child_nodes(cid, matched_case)
+                            for nxt in next_nodes:
+                                if nxt not in seen:
+                                    queue.append(nxt)
 
                         steps = list(state.get("execution_steps", []))
                         now = datetime.now(timezone.utc).isoformat()
