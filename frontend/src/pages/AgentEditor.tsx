@@ -5,6 +5,7 @@ import { fetchAgent, createAgent, updateAgent, exportAgent, type AgentNode } fro
 import AgentForm from '../components/AgentForm'
 import FlowCanvas from '../components/FlowCanvas'
 import ConfigPanel from '../components/ConfigPanel'
+import { copyApiUrl } from '../components/AgentCard'
 
 interface EdgeDef {
   sourceIdx: number
@@ -53,6 +54,7 @@ function AgentEditor() {
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<{ status: string; text: string } | null>(null)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
+  const [copiedApi, setCopiedApi] = useState(false)
   const runAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -167,6 +169,17 @@ ${detail}`)
     setRunResult({ status: 'stopped', text: '已停止运行' })
   }
 
+  const handleCopyApi = async () => {
+    if (!id || isNew) return
+    const ok = await copyApiUrl(id)
+    if (!ok) {
+      alert('复制失败，请检查浏览器剪贴板权限')
+      return
+    }
+    setCopiedApi(true)
+    window.setTimeout(() => setCopiedApi(false), 1800)
+  }
+
   const doRun = async () => {
     if (!runText.trim() || isNew || !id) return
     setRunDialogOpen(true)
@@ -250,6 +263,40 @@ ${detail}`)
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           {saved && <span style={{ color: '#22c55e', fontSize: 12 }}>✓ 已保存</span>}
           {saving && <span style={{ color: '#ffb74d', fontSize: 12 }}>保存中...</span>}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={handleCopyApi}
+              disabled={isNew || !id}
+              title={copiedApi ? '已复制 API 调用命令' : '复制 API 调用命令'}
+              aria-label={copiedApi ? '已复制 API 调用命令' : '复制 API 调用命令'}
+              style={{
+                width: 36, height: 36, padding: 0, fontSize: 13, border: '1px solid #2e3345', borderRadius: 8,
+                cursor: (isNew || !id) ? 'not-allowed' : 'pointer', background: copiedApi ? '#16301d' : '#1a1d29', color: copiedApi ? '#22c55e' : '#9ca3af', opacity: (isNew || !id) ? 0.5 : 1,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: copiedApi ? '0 0 0 1px rgba(34,197,94,0.28)' : 'none',
+                transform: copiedApi ? 'scale(1.05)' : 'none',
+              }}
+            >
+              {copiedApi ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3.5 8.2l2.5 2.5 6-6" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="3" width="8" height="10" rx="1.8" />
+                  <path d="M3 11V5.8C3 4.8 3.8 4 4.8 4H10" />
+                </svg>
+              )}
+            </button>
+            {copiedApi && (
+              <div style={{
+                position: 'absolute', top: '50%', right: 'calc(100% + 8px)', transform: 'translateY(-50%)',
+                padding: '4px 9px', borderRadius: 999, background: '#16301d', border: '1px solid rgba(34,197,94,0.35)',
+                color: '#86efac', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.28)',
+              }}>已复制</div>
+            )}
+          </div>
           <button
             onClick={openRunDialog}
             disabled={isNew}

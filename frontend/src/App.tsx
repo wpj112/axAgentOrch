@@ -7,7 +7,7 @@ import Settings from './pages/Settings'
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ maxWidth: 1600, margin: '0 auto', padding: 16, minHeight: '100vh', background: '#0f1117', color: '#e0e0e0' }}>
+      <div style={{ width: '100%', margin: 0, padding: 16, minHeight: '100vh', background: '#0f1117', color: '#e0e0e0', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 16px' }}>
           <div
             style={{
