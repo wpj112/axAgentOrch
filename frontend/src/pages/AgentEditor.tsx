@@ -16,6 +16,7 @@ interface EdgeDef {
 
 interface ExecutionStep {
   node_id: string
+  ref_node_id?: string
   type?: string
   label?: string
   status: string
@@ -219,6 +220,7 @@ ${detail}`)
               status: evt.status,
               started_at: evt.started_at,
               completed_at: evt.completed_at,
+              ref_node_id: evt.ref_node_id,
               output: evt.output,
             }))
           } else if (evt.event === 'done') {
@@ -440,7 +442,7 @@ ${detail}`)
                     <div style={{ display: 'grid', gridTemplateColumns: '64px 84px 1fr', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: step.status === 'success' ? '#22c55e' : step.status === 'failed' ? '#ef9a9a' : '#60a5fa' }}>{step.status}</span>
                       <span style={{ fontSize: 12, color: '#8b8fa3' }}>{step.type || '-'}</span>
-                      <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.node_id}</span>
+                      <span style={{ fontSize: 12, color: '#d7e3ec' }}>{step.label || step.ref_node_id || step.node_id}</span>
                     </div>
                     {step.output !== undefined && step.output !== null && (
                       <pre style={{

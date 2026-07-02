@@ -373,6 +373,67 @@ def test_loop_legacy_continue_condition_still_supported():
     assert result['node_outputs'][str(score.id)]['result'] == '1.0'
 
 
+def test_loop_records_each_child_execution_per_iteration(monkeypatch):
+    import app.engine.builder as builder_module
+
+    class FakeChatOpenAI:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def invoke(self, messages):
+            return SimpleNamespace(content='0.5')
+
+    monkeypatch.setattr(builder_module, 'ChatOpenAI', FakeChatOpenAI)
+
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 2,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('0.5')",
+    }, parent_id=loop.id)
+    llm = make_node('llm', 'Judge', {
+        'system_prompt': 'Return the score only.',
+    }, parent_id=loop.id)
+    loop.config['end_condition'] = {
+        'variable_selector': [str(score.id), 'result'],
+        'operator': 'gte',
+        'value': 0.8,
+    }
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, llm, end],
+        [
+            make_edge(start, loop),
+            make_edge(score, llm),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {'message': 'judge'},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    score_steps = [step for step in result['execution_steps'] if step.get('ref_node_id') == str(score.id)]
+    llm_steps = [step for step in result['execution_steps'] if step.get('ref_node_id') == str(llm.id)]
+    assert len(score_steps) == 2
+    assert len(llm_steps) == 2
+    assert score_steps[0]['label'].startswith('Iter 1')
+    assert score_steps[1]['label'].startswith('Iter 2')
+
+
 def test_loop_llm_rebuilds_prompt_each_iteration(monkeypatch):
     import app.engine.builder as builder_module
 

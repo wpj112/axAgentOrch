@@ -430,7 +430,25 @@ def build_graph(
                                 cq.append(nxt)
                     child_rank = {cid: idx for idx, cid in enumerate(child_order)}
 
-                    def execute_child_node(cur_state: AgentState, cid: str) -> tuple[AgentState, str | None]:
+                    loop_child_step_seq = 0
+
+                    def append_loop_child_step(cur_state: AgentState, iteration: int, ref_node_id: str, step_type: str, step_label: str, status: str) -> AgentState:
+                        nonlocal loop_child_step_seq
+                        loop_child_step_seq += 1
+                        steps = list(cur_state.get("execution_steps", []))
+                        now = datetime.now(timezone.utc).isoformat()
+                        steps.append({
+                            "node_id": f"{sid}_iter{iteration}_{ref_node_id}_{loop_child_step_seq}",
+                            "ref_node_id": ref_node_id,
+                            "type": step_type,
+                            "label": f"Iter {iteration + 1} · {step_label}",
+                            "status": status,
+                            "started_at": now,
+                            "completed_at": now,
+                        })
+                        return {**cur_state, "execution_steps": steps}
+
+                    def execute_child_node(cur_state: AgentState, cid: str, iteration: int) -> tuple[AgentState, str | None]:
                         child = child_map.get(cid)
                         if not child:
                             return cur_state, None
@@ -449,7 +467,7 @@ def build_graph(
                                 output_content = resp.content if hasattr(resp, "content") else str(resp)
                                 cur_state["messages"] = [resp]
                                 cur_state = {**cur_state, **set_output(cur_state, cid, {"text": output_content})}
-                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
                                 return cur_state, None
 
                             if ctypes == "http":
@@ -472,7 +490,7 @@ def build_graph(
                                 except Exception as e2:
                                     data = {"error": str(e2)}
                                 cur_state = {**cur_state, **set_output(cur_state, cid, data if isinstance(data, dict) else {"result": data})}
-                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")}
+                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "failed" if isinstance(data, dict) and "error" in data else "success")
                                 return cur_state, None
 
                             if ctypes == "code":
@@ -500,7 +518,7 @@ def build_graph(
                                 except Exception as e3:
                                     output = str(e3)
                                 cur_state = {**cur_state, **set_output(cur_state, cid, {"result": output})}
-                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
                                 return cur_state, None
 
                             if ctypes == "if_else":
@@ -515,17 +533,17 @@ def build_graph(
                                 if not matched:
                                     matched = ccfg.get("default_case_id", "default")
                                 matched_label = resolve_case_label(cid, matched)
-                                cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
                                 cur_state = {**cur_state, **set_output(cur_state, cid, {"matched_case": matched_label, "matched_case_key": matched, "upstream_output": upstream_output})}
+                                cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
                                 return cur_state, matched
 
                             cur_state = {**cur_state, **set_output(cur_state, cid, {"status": "ok"})}
-                            cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "success")}
+                            cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "success")
                             return cur_state, None
 
                         except Exception as ex:
                             cur_state = {**cur_state, **set_output(cur_state, cid, {"error": str(ex)})}
-                            cur_state = {**cur_state, **mark_step(cur_state, cid, ctypes, clabel, "failed")}
+                            cur_state = append_loop_child_step(cur_state, iteration, cid, ctypes, clabel, "failed")
                             return cur_state, None
 
                     def next_child_nodes(cid: str, matched_case: str | None) -> list[str]:
@@ -574,7 +592,7 @@ def build_graph(
                             if cid in seen:
                                 continue
                             seen.add(cid)
-                            state, matched_case = execute_child_node(state, cid)
+                            state, matched_case = execute_child_node(state, cid, iteration)
                             next_nodes = next_child_nodes(cid, matched_case)
                             for nxt in next_nodes:
                                 if nxt not in seen:

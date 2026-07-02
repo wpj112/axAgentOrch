@@ -47,7 +47,7 @@ interface EdgeDef {
 interface FlowCanvasProps {
   nodes: AgentNode[]
   edges: EdgeDef[]
-  executionSteps?: { node_id: string; status: string }[] | null
+  executionSteps?: { node_id: string; ref_node_id?: string; status: string }[] | null
   selectedNodeId?: string | null
   onNodesChange: (nodes: AgentNode[]) => void
   onEdgesChange: (edges: EdgeDef[]) => void
@@ -144,12 +144,12 @@ function getNodePixelHeight(node: Node) {
 function toRFNode(
   n: AgentNode,
   idx: number,
-  steps: { node_id: string; status: string }[] | null | undefined,
+  steps: { node_id: string; ref_node_id?: string; status: string }[] | null | undefined,
   allNodes: AgentNode[],
   loopBounds: Map<string, LoopBounds>,
   activeLoopId: string | null,
 ): Node {
-  const step = steps?.find((s) => s.node_id === n.id)
+  const step = steps ? [...steps].reverse().find((s) => (s.ref_node_id || s.node_id) === n.id) : undefined
   const parentNode = n.parent_id || undefined
   const parent = parentNode ? allNodes.find((candidate) => candidate.id === parentNode) : null
   const parentBound = parentNode ? loopBounds.get(parentNode) : null
@@ -339,7 +339,7 @@ function FlowCanvasInner({
   useEffect(() => {
     if (!executionSteps?.length) return
     setRfNodes((nds) => nds.map((n) => {
-      const step = executionSteps.find((s) => s.node_id === n.id)
+      const step = [...executionSteps].reverse().find((s) => (s.ref_node_id || s.node_id) === n.id)
       return step ? { ...n, data: { ...n.data, status: step.status } } : n
     }))
   }, [executionSteps, setRfNodes])

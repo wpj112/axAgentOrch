@@ -125,9 +125,10 @@ async def run_agent_stream(
                     node_outputs = state.get("node_outputs", {}) or {}
                     for step in new_steps:
                         step_node_id = step.get("node_id")
+                        step_ref_node_id = step.get("ref_node_id") or step_node_id
                         step_payload = {'event': 'step', **step}
-                        if step_node_id in node_outputs:
-                            step_payload['output'] = node_outputs.get(step_node_id)
+                        if step_ref_node_id in node_outputs:
+                            step_payload['output'] = node_outputs.get(step_ref_node_id)
                         yield f"data: {json.dumps(step_payload, ensure_ascii=False)}\n\n"
 
         final_outputs = []
@@ -135,8 +136,9 @@ async def run_agent_stream(
         for step in last_steps:
             step_payload = dict(step)
             step_node_id = step.get("node_id")
-            if step_node_id in node_outputs:
-                step_payload['output'] = node_outputs.get(step_node_id)
+            step_ref_node_id = step.get("ref_node_id") or step_node_id
+            if step_ref_node_id in node_outputs:
+                step_payload['output'] = node_outputs.get(step_ref_node_id)
             final_outputs.append(step_payload)
         yield f"data: {json.dumps({'event': 'done', 'status': 'success', 'steps': final_outputs, 'result': final_result}, ensure_ascii=False)}\n\n"
 
