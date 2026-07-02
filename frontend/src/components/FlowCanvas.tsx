@@ -196,13 +196,14 @@ function toRFEdge(e: EdgeDef, nodes: AgentNode[], activeNodeIds: Set<string>): E
   const sourceNode = nodes[e.sourceIdx]
   const targetNode = nodes[e.targetIdx]
   const isLoopInternal = Boolean(sourceNode?.parent_id && sourceNode.parent_id === targetNode?.parent_id)
+  const isIfElseBranch = sourceNode?.type === 'if_else'
   const isActive = !activeNodeIds.size || activeNodeIds.has(sourceNode?.id || '') || activeNodeIds.has(targetNode?.id || '')
   return {
     id: `${e.sourceIdx}-${e.targetIdx}-${e.sourceHandle || 'default'}`,
     source: sourceNode?.id || String(e.sourceIdx),
     target: targetNode?.id || String(e.targetIdx),
     sourceHandle: e.sourceHandle || undefined,
-    label: e.condition || undefined,
+    label: isIfElseBranch ? undefined : (e.condition || undefined),
     style: e.condition
       ? { strokeDasharray: '5 5', opacity: isActive ? 1 : 0.2 }
       : isLoopInternal
