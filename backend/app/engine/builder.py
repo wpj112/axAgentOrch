@@ -386,7 +386,8 @@ def build_graph(
             def make_loop_fn(sid, stype, slabel, loop_config):
                 def fn(state: AgentState) -> dict:
                     max_iter = int(loop_config.get("max_iterations", 5))
-                    condition_cfg = loop_config.get("condition", {})
+                    end_condition_cfg = loop_config.get("end_condition", {})
+                    legacy_continue_cfg = loop_config.get("condition", {}) if not end_condition_cfg else {}
                     start_node_id = str(loop_config.get("start_node_id", ""))
                     end_node_id = str(loop_config.get("end_node_id", ""))
 
@@ -557,11 +558,6 @@ def build_graph(
 
                     executed_iterations = 0
                     for iteration in range(max_iter):
-                        if iteration > 0 and condition_cfg:
-                            node_outputs = state.get("node_outputs", {})
-                            if not evaluate_conditions([condition_cfg], node_outputs):
-                                break
-
                         step = mark_step(state, sid, stype, slabel, "running")
                         state = {**state, **step}
                         iter_id = f"{sid}_iter{iteration}"
@@ -594,6 +590,12 @@ def build_graph(
                         state["execution_steps"] = steps
 
                         executed_iterations += 1
+
+                        node_outputs = state.get("node_outputs", {})
+                        if end_condition_cfg and evaluate_conditions([end_condition_cfg], node_outputs):
+                            break
+                        if legacy_continue_cfg and not evaluate_conditions([legacy_continue_cfg], node_outputs):
+                            break
 
                     s1 = mark_step(state, sid, stype, slabel, "success")
                     s2 = set_output(state, sid, {"iterations": executed_iterations})

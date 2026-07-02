@@ -56,8 +56,11 @@ interface FlowCanvasProps {
 
 function summarizeLoopConfig(config: Record<string, unknown>) {
   const maxIterations = Number(config.max_iterations || 5)
-  const hasCondition = Boolean(config.condition && Object.keys(config.condition as Record<string, unknown>).length > 0)
-  return hasCondition ? `最多 ${maxIterations} 轮，按条件退出` : `固定循环，最多 ${maxIterations} 轮`
+  const hasEndCondition = Boolean(config.end_condition && Object.keys(config.end_condition as Record<string, unknown>).length > 0)
+  const hasLegacyCondition = Boolean(!hasEndCondition && config.condition && Object.keys(config.condition as Record<string, unknown>).length > 0)
+  if (hasEndCondition) return `最多 ${maxIterations} 轮，满足结束条件后退出`
+  if (hasLegacyCondition) return `最多 ${maxIterations} 轮，按旧版继续条件运行`
+  return `固定循环，最多 ${maxIterations} 轮`
 }
 
 function readLoopDimension(config: Record<string, unknown>, key: 'loop_width' | 'loop_height') {

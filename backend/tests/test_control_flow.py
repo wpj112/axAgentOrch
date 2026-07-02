@@ -279,7 +279,54 @@ def test_code_node_python_ctx_handles_json_nulls():
     assert '"details": null' in code_output
 
 
-def test_loop_stops_before_next_iteration_when_previous_output_fails_condition():
+def test_loop_stops_after_first_iteration_when_end_condition_is_met():
+    start = make_node('start', 'Start')
+    loop = make_node('loop', 'RetryLoop', {
+        'max_iterations': 3,
+        'start_node_id': '',
+        'end_node_id': '',
+    })
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('1.0')",
+    }, parent_id=loop.id)
+    loop.config['end_condition'] = {
+        'variable_selector': [str(score.id), 'result'],
+        'operator': 'gte',
+        'value': 0.8,
+    }
+    end = make_node('end', 'End')
+
+    graph = build_graph(
+        [start, loop, score, end],
+        [
+            make_edge(start, loop),
+            make_edge(loop, end, source_handle='loop_exit'),
+        ],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    iteration_steps = [
+        step for step in result['execution_steps']
+        if step.get('type') == 'loop_iter'
+    ]
+    assert len(iteration_steps) == 1
+    assert result['node_outputs'][str(loop.id)]['iterations'] == 1
+    assert result['node_outputs'][str(score.id)]['result'] == '1.0'
+
+
+def test_loop_legacy_continue_condition_still_supported():
     start = make_node('start', 'Start')
     loop = make_node('loop', 'RetryLoop', {
         'max_iterations': 3,
@@ -354,9 +401,9 @@ def test_loop_llm_rebuilds_prompt_each_iteration(monkeypatch):
     llm = make_node('llm', 'Judge', {
         'system_prompt': 'Return the score only.',
     }, parent_id=loop.id)
-    loop.config['condition'] = {
+    loop.config['end_condition'] = {
         'variable_selector': [str(score.id), 'result'],
-        'operator': 'lt',
+        'operator': 'gte',
         'value': 0.8,
     }
     end = make_node('end', 'End')

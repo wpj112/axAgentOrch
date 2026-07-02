@@ -8,10 +8,11 @@ class NodeConfig(BaseModel):
 
 
 class NodeCreate(BaseModel):
+    id: str | uuid.UUID | None = None
     type: str = Field(..., description="start | llm | http | db | code | end | if_else | loop")
     label: str
     config: dict = Field(default_factory=dict)
-    parent_id: int | uuid.UUID | None = None
+    parent_id: int | str | uuid.UUID | None = None
     position_x: float = 0
     position_y: float = 0
 
@@ -30,8 +31,8 @@ class NodeResponse(BaseModel):
 
 
 class EdgeCreate(BaseModel):
-    source_node_id: int | uuid.UUID
-    target_node_id: int | uuid.UUID
+    source_node_id: int | str | uuid.UUID
+    target_node_id: int | str | uuid.UUID
     source_handle: str | None = None
     condition: str | None = None
 

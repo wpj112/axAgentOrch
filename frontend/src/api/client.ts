@@ -79,6 +79,7 @@ export async function createAgent(payload: {
   llm_model?: string | null
   llm_temperature?: string | null
   nodes: Array<{
+    id?: string
     type: AgentNode['type']
     label: string
     config: Record<string, unknown>
@@ -105,6 +106,7 @@ export async function updateAgent(
     llm_model?: string | null
     llm_temperature?: string | null
     nodes?: Array<{
+      id?: string
       type: AgentNode['type']
       label: string
       config: Record<string, unknown>

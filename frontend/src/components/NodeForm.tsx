@@ -49,11 +49,24 @@ function getRecommendedField(nodeType?: AgentNode['type']) {
   }
 }
 
+function invertLoopOperator(operator: string) {
+  switch (operator) {
+    case 'lt':
+      return 'gte'
+    case 'gte':
+      return 'lt'
+    case 'not_empty':
+      return 'not_empty'
+    default:
+      return operator || 'gte'
+  }
+}
+
 function deriveLoopFields(config: ConfigState): ConfigState {
   const next = { ...config }
   let parsedCondition: Record<string, unknown> = {}
 
-  const rawCondition = next.condition
+  const rawCondition = next.end_condition || next.condition
   if (rawCondition) {
     try {
       parsedCondition = JSON.parse(rawCondition)
@@ -65,11 +78,14 @@ function deriveLoopFields(config: ConfigState): ConfigState {
   const selector = Array.isArray(parsedCondition.variable_selector)
     ? parsedCondition.variable_selector.map(String)
     : []
+  const isLegacyCondition = !next.end_condition && Boolean(next.condition)
+  const parsedOperator = String(parsedCondition.operator || (isLegacyCondition ? 'lt' : 'gte'))
 
   next.loop_condition_node_id = selector[0] || ''
   next.loop_condition_field = selector.slice(1).join('.') || ''
-  next.loop_condition_operator = String(parsedCondition.operator || 'lt')
-  next.loop_condition_value = parsedCondition.operator === 'not_empty' ? '' : String(parsedCondition.value ?? '')
+  next.loop_condition_operator = isLegacyCondition ? invertLoopOperator(parsedOperator) : parsedOperator
+  next.loop_condition_value = parsedOperator === 'not_empty' ? '' : String(parsedCondition.value ?? '')
+  next.loop_condition_mode = isLegacyCondition ? 'legacy' : 'end_condition'
 
   if (!next.max_iterations) next.max_iterations = '5'
   if (!next.start_node_id) next.start_node_id = ''
@@ -259,27 +275,29 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
     if (type === 'loop') {
       const conditionNodeId = (config.loop_condition_node_id || '').trim()
       const conditionField = (config.loop_condition_field || '').trim()
-      const conditionOperator = config.loop_condition_operator || 'lt'
+      const conditionOperator = config.loop_condition_operator || 'gte'
       const conditionValue = (config.loop_condition_value || '').trim()
       const selector = [conditionNodeId, ...conditionField.split('.').map((part) => part.trim()).filter(Boolean)].filter(Boolean)
 
       if (selector.length > 0) {
-        finalConfig.condition = {
+        finalConfig.end_condition = {
           variable_selector: selector,
           operator: conditionOperator,
           ...(conditionOperator === 'not_empty' ? {} : { value: conditionValue }),
         }
       } else {
-        finalConfig.condition = {}
+        finalConfig.end_condition = {}
       }
 
       finalConfig.max_iterations = parseInt(config.max_iterations || '5', 10)
       finalConfig.start_node_id = config.start_node_id || ''
       finalConfig.end_node_id = config.end_node_id || ''
+      delete finalConfig.condition
       delete finalConfig.loop_condition_node_id
       delete finalConfig.loop_condition_field
       delete finalConfig.loop_condition_operator
       delete finalConfig.loop_condition_value
+      delete finalConfig.loop_condition_mode
     }
 
     onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: parentId || null }, nextEdges)
@@ -472,7 +490,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <input value={config.max_iterations || '5'} onChange={(e) => setConfigField('max_iterations', e.target.value)} style={inputStyle} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>继续条件</label>
+            <label style={labelStyle}>结束条件</label>
             <select value={config.loop_condition_node_id || ''} onChange={(e) => handleLoopConditionNodeChange(e.target.value)} style={inputStyle} disabled={!loopConditionNodes.length}>
               <option value="">未设置（仅按最大轮次结束）</option>
               {loopConditionNodes.map((node) => (
@@ -486,7 +504,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>操作符</label>
-            <select value={config.loop_condition_operator || 'lt'} onChange={(e) => setConfigField('loop_condition_operator', e.target.value)} style={inputStyle} disabled={!config.loop_condition_node_id}>
+            <select value={config.loop_condition_operator || 'gte'} onChange={(e) => setConfigField('loop_condition_operator', e.target.value)} style={inputStyle} disabled={!config.loop_condition_node_id}>
               <option value="is">等于</option>
               <option value="contains">包含</option>
               <option value="starts_with">开头是</option>
@@ -504,9 +522,14 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
           )}
           <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
             {config.loop_condition_node_id
-              ? `当前会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
-              : '先选择循环体里的一个节点作为判断来源。固定结构节点会自动带出推荐字段；HTTP / DB 默认留空，避免推荐错误字段。'}
+              ? `每轮结束后会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}；条件满足时退出循环。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
+              : '先选择循环体里的一个节点作为结束判断来源。固定结构节点会自动带出推荐字段；HTTP / DB 默认留空，避免推荐错误字段。'}
           </div>
+          {config.loop_condition_mode === 'legacy' && (
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', fontSize: 12, color: '#fcd34d', lineHeight: 1.6, marginBottom: 12 }}>
+              这个 loop 之前使用的是旧版“继续条件”。这里已经按“结束条件”方式帮你转换显示；保存后会升级为新版配置。
+            </div>
+          )}
           <div style={fieldStyle}>
             <label style={labelStyle}>循环体起点</label>
             <select value={config.start_node_id || ''} onChange={(e) => setConfigField('start_node_id', e.target.value)} style={inputStyle} disabled={!loopChildren.length}>
@@ -527,8 +550,8 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
           </div>
           <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 4, lineHeight: 1.6 }}>
             {loopChildren.length
-              ? `当前循环体里有 ${loopChildren.length} 个节点。条件来源、起点和终点都可以直接从这些节点里选择。`
-              : '先把节点加入这个 loop 容器，条件来源、起点/终点下拉里才会出现可选项。'}
+              ? `当前循环体里有 ${loopChildren.length} 个节点。结束条件来源、起点和终点都可以直接从这些节点里选择。`
+              : '先把节点加入这个 loop 容器，结束条件来源、起点/终点下拉里才会出现可选项。'}
           </div>
           <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 8 }}>
             loop 连到外部结束节点的边请命名为 `loop_exit`。

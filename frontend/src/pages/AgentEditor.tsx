@@ -88,10 +88,11 @@ function AgentEditor() {
   const buildNodePayload = (curNodes: AgentNode[]) => {
     const nodeIndexById = new Map(curNodes.map((node, idx) => [node.id || String(idx), idx]))
     return curNodes.map((n) => ({
+      id: n.id,
       type: n.type,
       label: n.label,
       config: n.config,
-      parent_id: n.parent_id ? (nodeIndexById.get(n.parent_id) ?? null) : null,
+      parent_id: n.parent_id ? (nodeIndexById.get(n.parent_id) ?? n.parent_id ?? null) : null,
       position_x: n.position_x ?? 0,
       position_y: n.position_y ?? 0,
     }))
