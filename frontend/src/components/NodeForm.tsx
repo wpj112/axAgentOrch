@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AgentNode } from '../api/client'
 import JsonEditor from './JsonEditor'
 import { NodeIcon, NODE_CONFIG } from './nodeIcons'
+import VariableSelector, { getRecommendedOutputField } from './VariableSelector'
 
 interface EdgeLike {
   sourceIdx: number
@@ -28,24 +29,46 @@ const fieldStyle: React.CSSProperties = { marginBottom: 12 }
 
 type ConfigState = Record<string, string>
 
-function getRecommendedField(nodeType?: AgentNode['type']) {
-  switch (nodeType) {
-    case 'llm':
-      return 'text'
-    case 'code':
-      return 'result'
-    case 'if_else':
-      return 'matched_case'
-    case 'loop':
-      return 'iterations'
-    case 'start':
-    case 'end':
-      return 'status'
-    case 'http':
-    case 'db':
-      return ''
-    default:
-      return 'text'
+type HttpBodyField = {
+  id: string
+  target_path: string
+  source_type: 'constant' | 'node'
+  constant_value?: string
+  variable_selector?: string[]
+  value_type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any'
+}
+
+type LlmPromptVariable = {
+  id: string
+  name: string
+  variable_selector: string[]
+}
+
+function parseJsonList<T>(value: string | undefined, fallback: T[] = []) {
+  if (!value) return fallback
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed as T[] : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function makeBodyField(): HttpBodyField {
+  return {
+    id: `field_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    target_path: '',
+    source_type: 'constant',
+    constant_value: '',
+    value_type: 'string',
+  }
+}
+
+function makePromptVariable(): LlmPromptVariable {
+  return {
+    id: `var_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    name: '',
+    variable_selector: [],
   }
 }
 
@@ -134,6 +157,8 @@ function makeFlatConfig(initial?: AgentNode | null): ConfigState {
   for (const [k, v] of Object.entries(initial.config)) {
     flat[k] = typeof v === 'string' ? v : JSON.stringify(v)
   }
+  if (!flat.body_mode) flat.body_mode = flat.body ? 'raw_json' : 'fields'
+  if (!flat.body_fields) flat.body_fields = '[]'
   return flat
 }
 
@@ -183,7 +208,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
 
   const handleIfSourceNodeChange = (nodeId: string) => {
     const node = ifSourceNodes.find((item) => item.id === nodeId)
-    const recommendedField = getRecommendedField(node?.type)
+    const recommendedField = getRecommendedOutputField(node?.type)
     setConfig((prev) => ({
       ...prev,
       if_source_node_id: nodeId,
@@ -195,7 +220,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
 
   const handleLoopConditionNodeChange = (nodeId: string) => {
     const node = loopConditionNodes.find((item) => item.id === nodeId)
-    const recommendedField = getRecommendedField(node?.type)
+    const recommendedField = getRecommendedOutputField(node?.type)
     setConfig((prev) => ({
       ...prev,
       loop_condition_node_id: nodeId,
@@ -209,6 +234,24 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
     ? allNodes.filter((node) => node.parent_id === initial.id)
     : []
   const loopConditionNodes = loopChildren.filter((node) => node.id)
+  const bodyFields = useMemo(() => parseJsonList<HttpBodyField>(config.body_fields), [config.body_fields])
+  const promptVariables = useMemo(() => parseJsonList<LlmPromptVariable>(config.prompt_variables), [config.prompt_variables])
+
+  const updateBodyFields = (nextFields: HttpBodyField[]) => {
+    setConfigField('body_fields', JSON.stringify(nextFields))
+  }
+
+  const updateBodyField = (fieldId: string, patch: Partial<HttpBodyField>) => {
+    updateBodyFields(bodyFields.map((field) => field.id === fieldId ? { ...field, ...patch } : field))
+  }
+
+  const updatePromptVariables = (nextVariables: LlmPromptVariable[]) => {
+    setConfigField('prompt_variables', JSON.stringify(nextVariables))
+  }
+
+  const updatePromptVariable = (variableId: string, patch: Partial<LlmPromptVariable>) => {
+    updatePromptVariables(promptVariables.map((variable) => variable.id === variableId ? { ...variable, ...patch } : variable))
+  }
 
   const handleSave = () => {
     const finalConfig: Record<string, unknown> = { ...config }
@@ -300,6 +343,33 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
       delete finalConfig.loop_condition_mode
     }
 
+    if (type === 'http') {
+      finalConfig.body_mode = config.body_mode || 'fields'
+      if (finalConfig.body_mode === 'fields') {
+        finalConfig.body_fields = bodyFields
+          .filter((field) => field.target_path.trim())
+          .map((field) => ({
+            target_path: field.target_path.trim(),
+            source_type: field.source_type,
+            value_type: field.value_type || 'string',
+            ...(field.source_type === 'node'
+              ? { variable_selector: field.variable_selector || [] }
+              : { constant_value: field.constant_value ?? '' }),
+          }))
+      } else {
+        finalConfig.body_fields = []
+      }
+    }
+
+    if (type === 'llm') {
+      finalConfig.prompt_variables = promptVariables
+        .filter((variable) => variable.name.trim() && variable.variable_selector?.length)
+        .map((variable) => ({
+          name: variable.name.trim(),
+          variable_selector: variable.variable_selector || [],
+        }))
+    }
+
     onSave({ id: initial?.id, type: type as AgentNode['type'], label, config: finalConfig, parent_id: parentId || null }, nextEdges)
   }
 
@@ -358,6 +428,49 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <textarea value={config.system_prompt || ''} onChange={(e) => setConfigField('system_prompt', e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
           <div style={fieldStyle}>
+            <label style={labelStyle}>Prompt 变量</label>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {promptVariables.length > 0 ? promptVariables.map((variable) => (
+                <div key={variable.id} style={{ padding: 10, borderRadius: 8, border: '1px solid #2e3345', background: '#202432' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 8 }}>
+                    <input
+                      value={variable.name}
+                      onChange={(e) => updatePromptVariable(variable.id, { name: e.target.value })}
+                      placeholder="变量名，如 score"
+                      style={inputStyle}
+                    />
+                    <VariableSelector
+                      nodes={allNodes || []}
+                      currentNodeId={initial?.id}
+                      value={{ nodeId: variable.variable_selector?.[0] || '', field: variable.variable_selector?.slice(1).join('.') || '' }}
+                      onChange={(next) => updatePromptVariable(variable.id, { variable_selector: [next.nodeId, ...next.field.split('.').map((part) => part.trim()).filter(Boolean)].filter(Boolean) })}
+                      fieldPlaceholder="text / result / data.score"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 10 }}>
+                    <div style={{ fontSize: 11, color: '#8b8fa3' }}>{'可在 System Prompt 中用 {{变量名}} 引用。'}</div>
+                    <button
+                      onClick={() => updatePromptVariables(promptVariables.filter((item) => item.id !== variable.id))}
+                      style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid #3b2630', background: '#2b1b22', color: '#ef9a9a', cursor: 'pointer' }}
+                    >
+                      删除变量
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed #2e3345', color: '#8b8fa3', fontSize: 12 }}>
+                  {'可选配置。添加后，可在 System Prompt 中用 {{变量名}} 精确引用上游字段。'}
+                </div>
+              )}
+              <button
+                onClick={() => updatePromptVariables([...promptVariables, makePromptVariable()])}
+                style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid #2e3345', background: '#252836', color: '#bfdbfe', cursor: 'pointer' }}
+              >
+                添加变量
+              </button>
+            </div>
+          </div>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Temperature</label>
             <input value={config.temperature || '0.7'} onChange={(e) => setConfigField('temperature', e.target.value)} style={inputStyle} />
           </div>
@@ -384,9 +497,106 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <textarea value={config.headers || '{}'} onChange={(e) => setConfigField('headers', e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Body Template (JSON)</label>
-            <JsonEditor value={config.body || '{}'} onChange={(v) => setConfigField('body', v)} />
+            <label style={labelStyle}>Body 模式</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { value: 'raw_json', label: '原始 JSON' },
+                { value: 'fields', label: '字段构造' },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  onClick={() => setConfigField('body_mode', item.value)}
+                  style={{
+                    padding: '7px 10px', borderRadius: 7, border: '1px solid #2e3345',
+                    background: (config.body_mode || 'fields') === item.value ? '#1d3b63' : '#252836',
+                    color: (config.body_mode || 'fields') === item.value ? '#bfdbfe' : '#9ca3af', cursor: 'pointer',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
+          {(config.body_mode || 'fields') === 'raw_json' ? (
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Body JSON</label>
+              <JsonEditor value={config.body || '{}'} onChange={(v) => setConfigField('body', v)} />
+            </div>
+          ) : (
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Body 字段</label>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {bodyFields.length > 0 ? bodyFields.map((field) => (
+                  <div key={field.id} style={{ padding: 10, borderRadius: 8, border: '1px solid #2e3345', background: '#202432' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 96px', gap: 8, marginBottom: 8 }}>
+                      <input
+                        value={field.target_path}
+                        onChange={(e) => updateBodyField(field.id, { target_path: e.target.value })}
+                        placeholder="目标字段，如 score / position.lon"
+                        style={inputStyle}
+                      />
+                      <select
+                        value={field.value_type}
+                        onChange={(e) => updateBodyField(field.id, { value_type: e.target.value as HttpBodyField['value_type'] })}
+                        style={inputStyle}
+                      >
+                        <option value="string">字符串</option>
+                        <option value="number">数字</option>
+                        <option value="boolean">布尔</option>
+                        <option value="object">对象</option>
+                        <option value="array">数组</option>
+                        <option value="any">原值</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', gap: 8 }}>
+                      <select
+                        value={field.source_type}
+                        onChange={(e) => updateBodyField(field.id, { source_type: e.target.value as HttpBodyField['source_type'] })}
+                        style={inputStyle}
+                      >
+                        <option value="constant">常量</option>
+                        <option value="node">节点输出</option>
+                      </select>
+                      {field.source_type === 'node' ? (
+                        <VariableSelector
+                          nodes={allNodes || []}
+                          currentNodeId={initial?.id}
+                          value={{ nodeId: field.variable_selector?.[0] || '', field: field.variable_selector?.slice(1).join('.') || '' }}
+                          onChange={(next) => updateBodyField(field.id, { variable_selector: [next.nodeId, ...next.field.split('.').map((part) => part.trim()).filter(Boolean)].filter(Boolean) })}
+                          fieldPlaceholder="text / result / data.score"
+                        />
+                      ) : (
+                        <input
+                          value={field.constant_value || ''}
+                          onChange={(e) => updateBodyField(field.id, { constant_value: e.target.value })}
+                          placeholder="常量值"
+                          style={inputStyle}
+                        />
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                      <button
+                        onClick={() => updateBodyFields(bodyFields.filter((item) => item.id !== field.id))}
+                        style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid #3b2630', background: '#2b1b22', color: '#ef9a9a', cursor: 'pointer' }}
+                      >
+                        删除字段
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed #2e3345', color: '#8b8fa3', fontSize: 12 }}>
+                    还没有字段，添加一行来构造请求 body。
+                  </div>
+                )}
+                <button
+                  onClick={() => updateBodyFields([...bodyFields, makeBodyField()])}
+                  style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid #2e3345', background: '#252836', color: '#bfdbfe', cursor: 'pointer' }}
+                >
+                  添加字段
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -422,19 +632,17 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
       {type === 'if_else' && (
         <>
           <div style={fieldStyle}>
-            <label style={labelStyle}>判断来源节点</label>
-            <select value={config.if_source_node_id || ''} onChange={(e) => handleIfSourceNodeChange(e.target.value)} style={inputStyle}>
-              <option value="">使用直接上游输出</option>
-              {ifSourceNodes.map((node) => (
-                <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
-              ))}
-            </select>
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>判断字段</label>
-            <input value={config.if_source_field || 'text'} onChange={(e) => setConfigField('if_source_field', e.target.value)} placeholder="text / result / data.intent" style={inputStyle} />
+            <label style={labelStyle}>判断变量</label>
+            <VariableSelector
+              nodes={ifSourceNodes}
+              currentNodeId={initial?.id}
+              allowDirectUpstream
+              value={{ nodeId: config.if_source_node_id || '', field: config.if_source_field || 'text' }}
+              onChange={(next) => setConfig((prev) => ({ ...prev, if_source_node_id: next.nodeId, if_source_field: next.field }))}
+              fieldPlaceholder="text / result / data.intent"
+            />
             <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 6, lineHeight: 1.6 }}>
-              先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。LLM / Code / If-else / Loop 会自动带出推荐字段；HTTP / DB 因返回结构不固定，默认留空让你自己选择具体字段。
+              先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。
             </div>
           </div>
           {connectedBranchTargets.length > 0 ? (
@@ -490,17 +698,15 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <input value={config.max_iterations || '5'} onChange={(e) => setConfigField('max_iterations', e.target.value)} style={inputStyle} />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>结束条件</label>
-            <select value={config.loop_condition_node_id || ''} onChange={(e) => handleLoopConditionNodeChange(e.target.value)} style={inputStyle} disabled={!loopConditionNodes.length}>
-              <option value="">未设置（仅按最大轮次结束）</option>
-              {loopConditionNodes.map((node) => (
-                <option key={node.id} value={node.id}>{node.label} ({NODE_CONFIG[node.type]?.label || node.type})</option>
-              ))}
-            </select>
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>判断字段</label>
-            <input value={config.loop_condition_field || ''} onChange={(e) => setConfigField('loop_condition_field', e.target.value)} placeholder="text / result / score / data.intent" style={inputStyle} disabled={!config.loop_condition_node_id} />
+            <label style={labelStyle}>结束变量</label>
+            <VariableSelector
+              nodes={loopConditionNodes}
+              currentNodeId={initial?.id}
+              value={{ nodeId: config.loop_condition_node_id || '', field: config.loop_condition_field || '' }}
+              onChange={(next) => setConfig((prev) => ({ ...prev, loop_condition_node_id: next.nodeId, loop_condition_field: next.field }))}
+              disabled={!loopConditionNodes.length}
+              fieldPlaceholder="text / result / score / data.intent"
+            />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>操作符</label>

@@ -2,6 +2,8 @@
 import uuid
 from types import SimpleNamespace
 
+from langchain_core.messages import AIMessage
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -277,6 +279,114 @@ def test_code_node_python_ctx_handles_json_nulls():
 
     code_output = result['node_outputs'][str(code.id)]['result']
     assert '"details": null' in code_output
+
+
+def test_llm_node_renders_prompt_variable_templates(monkeypatch):
+    captured = {}
+
+    class FakeLLM:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def invoke(self, messages):
+            captured['messages'] = messages
+            return AIMessage(content='ok')
+
+    monkeypatch.setattr('app.engine.builder.ChatOpenAI', FakeLLM)
+
+    start = make_node('start', 'Start')
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('0.92')",
+    })
+    llm = make_node('llm', 'Judge', {
+        'system_prompt': 'Use score {{ score }} only.',
+        'prompt_variables': [
+            {'name': 'score', 'variable_selector': [str(score.id), 'result']},
+        ],
+    })
+
+    graph = build_graph(
+        [start, score, llm],
+        [make_edge(start, score), make_edge(score, llm)],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    system_text = captured['messages'][0].content
+    prompt_text = captured['messages'][-1].content
+    assert system_text == 'Use score 0.92 only.'
+    assert 'Selected variables' not in prompt_text
+    assert '{{ score }}' not in system_text
+    assert result['node_outputs'][str(llm.id)] == {'text': 'ok'}
+
+
+def test_http_node_builds_body_from_fields(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        headers = {'content-type': 'application/json'}
+        text = '{"ok": true}'
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {'ok': True}
+
+    def fake_request(self, method, url, headers=None, json=None):
+        captured['method'] = method
+        captured['url'] = url
+        captured['json'] = json
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx.Client, 'request', fake_request)
+
+    start = make_node('start', 'Start')
+    score = make_node('code', 'Score', {
+        'language': 'python',
+        'source_code': "print('0.92')",
+    })
+    http = make_node('http', 'Submit', {
+        'url': 'https://example.invalid/submit',
+        'method': 'POST',
+        'body_mode': 'fields',
+        'body_fields': [
+            {'target_path': 'score', 'source_type': 'node', 'variable_selector': [str(score.id), 'result'], 'value_type': 'number'},
+            {'target_path': 'meta.retry', 'source_type': 'constant', 'constant_value': 'false', 'value_type': 'boolean'},
+            {'target_path': 'meta.label', 'source_type': 'constant', 'constant_value': 'demo', 'value_type': 'string'},
+        ],
+    })
+
+    graph = build_graph(
+        [start, score, http],
+        [make_edge(start, score), make_edge(score, http)],
+        model='gpt-4o',
+        api_key='test',
+        base_url='https://example.invalid/v1',
+        temperature=0.0,
+    )
+
+    result = graph.invoke({
+        'messages': [],
+        'input': {},
+        'execution_steps': [],
+        'node_outputs': {},
+        'tool_results': {},
+    })
+
+    assert captured['json'] == {'score': 0.92, 'meta': {'retry': False, 'label': 'demo'}}
+    assert result['node_outputs'][str(http.id)] == {'ok': True}
 
 
 def test_loop_stops_after_first_iteration_when_end_condition_is_met():

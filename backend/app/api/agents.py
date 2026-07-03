@@ -49,6 +49,38 @@ async def list_agents(search: str | None = None, db: AsyncSession = Depends(get_
     return AgentListResponse(items=items, total=len(items))
 
 
+@router.post("/import", response_model=AgentResponse, status_code=201)
+async def import_agent(data: AgentCreate, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import select as sa_select
+    from app.models import Agent
+
+    service = AgentService(db)
+    from datetime import datetime
+
+    base_name = data.name.strip() or "Imported Agent"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    candidate = f"{base_name}_{timestamp}"
+    suffix = 2
+    while True:
+        existing = await db.execute(sa_select(Agent.id).where(Agent.name == candidate))
+        if existing.scalar_one_or_none() is None:
+            break
+        candidate = f"{base_name}_{timestamp}_{suffix}"
+        suffix += 1
+    agent = await service.create_agent(data.model_copy(update={"name": candidate}))
+    return AgentResponse(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        llm_model=agent.llm_model,
+        llm_temperature=agent.llm_temperature,
+        created_at=agent.created_at,
+        updated_at=agent.updated_at,
+        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
+        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
+    )
+
+
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     service = AgentService(db)
@@ -198,7 +230,7 @@ async def export_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         llm_model=agent.llm_model,
         llm_temperature=agent.llm_temperature,
         nodes=[{
-            "type": n.type, "label": n.label, "config": n.config,
+            "id": str(n.id), "type": n.type, "label": n.label, "config": n.config,
             "parent_id": node_id_to_idx.get(str(n.parent_id)) if n.parent_id else None,
             "position_x": n.position_x, "position_y": n.position_y,
         } for n in nodes_list],
@@ -207,21 +239,4 @@ async def export_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             "target_node_id": node_id_to_idx.get(str(e.target_node_id), 0),
             "source_handle": e.source_handle, "condition": e.condition,
         } for e in agent.edges],
-    )
-
-
-@router.post("/import", response_model=AgentResponse, status_code=201)
-async def import_agent(data: AgentCreate, db: AsyncSession = Depends(get_db)):
-    service = AgentService(db)
-    agent = await service.create_agent(data)
-    return AgentResponse(
-        id=agent.id,
-        name=agent.name,
-        description=agent.description,
-        llm_model=agent.llm_model,
-        llm_temperature=agent.llm_temperature,
-        created_at=agent.created_at,
-        updated_at=agent.updated_at,
-        nodes=[{"id": n.id, "agent_id": n.agent_id, "type": n.type, "label": n.label, "config": n.config, "position_x": n.position_x, "position_y": n.position_y, "parent_id": n.parent_id} for n in agent.nodes],
-        edges=[{"id": e.id, "agent_id": e.agent_id, "source_node_id": e.source_node_id, "target_node_id": e.target_node_id, "source_handle": e.source_handle, "condition": e.condition} for e in agent.edges],
     )

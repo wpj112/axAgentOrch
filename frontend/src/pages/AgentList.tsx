@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import axios from 'axios'
 import { fetchAgents, deleteAgent as apiDeleteAgent, importAgent, type Agent } from '../api/client'
 import AgentCard, { apiUrl, copyApiUrl } from '../components/AgentCard'
 
@@ -65,7 +66,19 @@ function AgentList() {
         await importAgent(json)
         loadAgents()
         alert('导入成功')
-      } catch { alert('导入失败，请检查 JSON 格式') }
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          alert('导入失败：文件不是合法 JSON')
+          return
+        }
+        const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null
+        const message = Array.isArray(detail)
+          ? detail.map((item) => item?.msg || JSON.stringify(item)).join('；')
+          : typeof detail === 'string'
+            ? detail
+            : '请检查文件是否为智能体导出文件'
+        alert(`导入失败：${message}`)
+      }
     }
     input.click()
   }

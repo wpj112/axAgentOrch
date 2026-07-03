@@ -134,6 +134,38 @@ class AgentService:
         if 'default_case_id' in remapped:
             remapped['default_case_id'] = self._remap_route_ref(remapped.get('default_case_id'), created_nodes, legacy_index_by_id)
 
+        body_fields = remapped.get('body_fields')
+        if isinstance(body_fields, list):
+            next_body_fields = []
+            for field in body_fields:
+                if isinstance(field, dict) and field.get('source_type') == 'node' and 'variable_selector' in field:
+                    next_field = dict(field)
+                    next_field['variable_selector'] = self._remap_selector(
+                        field.get('variable_selector'),
+                        created_nodes,
+                        legacy_index_by_id,
+                    )
+                    next_body_fields.append(next_field)
+                else:
+                    next_body_fields.append(field)
+            remapped['body_fields'] = next_body_fields
+
+        prompt_variables = remapped.get('prompt_variables')
+        if isinstance(prompt_variables, list):
+            next_prompt_variables = []
+            for variable in prompt_variables:
+                if isinstance(variable, dict) and 'variable_selector' in variable:
+                    next_variable = dict(variable)
+                    next_variable['variable_selector'] = self._remap_selector(
+                        variable.get('variable_selector'),
+                        created_nodes,
+                        legacy_index_by_id,
+                    )
+                    next_prompt_variables.append(next_variable)
+                else:
+                    next_prompt_variables.append(variable)
+            remapped['prompt_variables'] = next_prompt_variables
+
         return remapped
 
     async def _create_nodes(

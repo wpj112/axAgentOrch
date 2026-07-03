@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from typing import Annotated, TypedDict, Callable
 
@@ -144,8 +145,118 @@ def build_graph(
                 normalized.append(part)
         return normalized
 
-    def build_llm_messages(system_text: str, input_data: dict, tool_results: dict, node_outputs: dict) -> list[BaseMessage]:
+    def resolve_variable(selector, node_outputs: dict):
+        current = node_outputs
+        for key in normalize_selector(selector):
+            if isinstance(current, dict):
+                current = current.get(key)
+            elif isinstance(current, list) and isinstance(key, int) and 0 <= key < len(current):
+                current = current[key]
+            else:
+                return None
+        return current
+
+    def coerce_body_value(value, value_type: str):
+        if value_type == "number":
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0
+        if value_type == "boolean":
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().lower() in ("true", "1", "yes", "y", "on")
+        if value_type in ("object", "array") and isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                return {} if value_type == "object" else []
+        if value_type == "string":
+            return "" if value is None else str(value)
+        return value
+
+    def set_body_path(target: dict, path: str, value):
+        parts = [part.strip() for part in str(path).split('.') if part.strip()]
+        if not parts:
+            return
+        current = target
+        for part in parts[:-1]:
+            if not isinstance(current.get(part), dict):
+                current[part] = {}
+            current = current[part]
+        current[parts[-1]] = value
+
+    def build_http_body(http_config: dict, state: AgentState) -> dict | list | str:
+        body_mode = http_config.get("body_mode", "raw_json" if http_config.get("body") else "fields")
+        if body_mode != "fields":
+            body_str = http_config.get("body", "{}")
+            try:
+                return json.loads(body_str) if isinstance(body_str, str) else body_str
+            except Exception:
+                return {}
+
+        body: dict = {}
+        node_outputs = state.get("node_outputs", {}) or {}
+        fields = http_config.get("body_fields", [])
+        if isinstance(fields, str):
+            try:
+                fields = json.loads(fields)
+            except Exception:
+                fields = []
+        for field in fields if isinstance(fields, list) else []:
+            if not isinstance(field, dict):
+                continue
+            target_path = str(field.get("target_path", "")).strip()
+            if not target_path:
+                continue
+            value_type = str(field.get("value_type", "string"))
+            if field.get("source_type") == "node":
+                value = resolve_variable(field.get("variable_selector", []), node_outputs)
+            else:
+                value = field.get("constant_value", "")
+            set_body_path(body, target_path, coerce_body_value(value, value_type))
+        return body
+
+    def resolve_prompt_variables(prompt_variables, node_outputs: dict) -> dict:
+        resolved = {}
+        if isinstance(prompt_variables, str):
+            try:
+                prompt_variables = json.loads(prompt_variables)
+            except Exception:
+                prompt_variables = []
+        for item in prompt_variables if isinstance(prompt_variables, list) else []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            resolved[name] = resolve_variable(item.get("variable_selector", []), node_outputs)
+        return resolved
+
+    def format_prompt_value(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+
+    def render_prompt_template(text: str, variables: dict) -> str:
+        if not isinstance(text, str) or not variables:
+            return text
+
+        def replace(match):
+            name = match.group(1).strip()
+            if name not in variables:
+                return match.group(0)
+            return format_prompt_value(variables[name])
+
+        return re.sub(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}", replace, text)
+
+    def build_llm_messages(system_text: str, input_data: dict, tool_results: dict, node_outputs: dict, prompt_variables=None) -> list[BaseMessage]:
+        selected_variables = resolve_prompt_variables(prompt_variables, node_outputs)
         user_text = str(input_data) if input_data else "Process the request."
+        user_text = render_prompt_template(user_text, selected_variables)
+        system_text = render_prompt_template(system_text, selected_variables)
         context_parts = []
         if tool_results:
             context_parts.append("Previous tool results:")
@@ -238,26 +349,14 @@ def build_graph(
                     output_content = ""
 
                     try:
-                        if not msgs:
-                            user_text = str(input_data) if input_data else "Process the request."
-                            system_text = llm_config.get("system_prompt", "")
-
-                            context = ""
-                            if tool_results:
-                                context = "Previous tool results:\n"
-                                for tool_name, result in tool_results.items():
-                                    context += f"{tool_name}: {json.dumps(result, indent=2, ensure_ascii=False)}\n"
-                            if node_outputs:
-                                context += "\nPrevious node outputs:\n"
-                                for nid_val, val in node_outputs.items():
-                                    context += f"{nid_val}: {json.dumps(val, indent=2, ensure_ascii=False)}\n"
-
-                            prompt_parts = []
-                            if system_text:
-                                prompt_parts.append(SystemMessage(content=system_text))
-                            prompt_text = f"{context}\nUser request: {user_text}" if context else user_text
-                            prompt_parts.append(HumanMessage(content=prompt_text))
-                            msgs = prompt_parts
+                        if not msgs or llm_config.get("prompt_variables"):
+                            msgs = build_llm_messages(
+                                llm_config.get("system_prompt", ""),
+                                input_data,
+                                tool_results,
+                                node_outputs,
+                                llm_config.get("prompt_variables", []),
+                            )
 
                         resp = _llm.invoke(msgs)
                         output_content = resp.content if hasattr(resp, "content") else str(resp)
@@ -283,15 +382,11 @@ def build_graph(
                     url = http_config.get("url", "")
                     method = http_config.get("method", "GET")
                     headers_str = http_config.get("headers", "{}")
-                    body_str = http_config.get("body", "{}")
                     try:
                         headers = json.loads(headers_str) if isinstance(headers_str, str) else headers_str
                     except Exception:
                         headers = {}
-                    try:
-                        body = json.loads(body_str) if isinstance(body_str, str) else body_str
-                    except Exception:
-                        body = {}
+                    body = build_http_body(http_config, state)
 
                     try:
                         import httpx
@@ -511,7 +606,7 @@ def build_graph(
                                 tool_results = cur_state.get("tool_results", {})
                                 node_outputs = cur_state.get("node_outputs", {})
                                 system_text = ccfg.get("system_prompt", "")
-                                msgs = build_llm_messages(system_text, input_data, tool_results, node_outputs)
+                                msgs = build_llm_messages(system_text, input_data, tool_results, node_outputs, ccfg.get("prompt_variables", []))
                                 resp = llm.invoke(msgs)
                                 output_content = resp.content if hasattr(resp, "content") else str(resp)
                                 cur_state["messages"] = [resp]
@@ -527,10 +622,7 @@ def build_graph(
                                     headers = json.loads(ccfg.get("headers", "{}")) if isinstance(ccfg.get("headers", ""), str) else ccfg.get("headers", {})
                                 except Exception:
                                     headers = {}
-                                try:
-                                    body = json.loads(ccfg.get("body", "{}")) if isinstance(ccfg.get("body", ""), str) else ccfg.get("body", {})
-                                except Exception:
-                                    body = {}
+                                body = build_http_body(ccfg, cur_state)
                                 try:
                                     import httpx
                                     with httpx.Client(timeout=30) as client:

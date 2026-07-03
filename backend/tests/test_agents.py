@@ -163,10 +163,10 @@ async def test_create_agent_persists_loop_and_if_else_refs_from_submitted_ids(cl
             {"id": "loop-temp", "type": "loop", "label": "Loop", "config": {"max_iterations": 5, "start_node_id": "score-temp", "end_condition": {"operator": "gte", "variable_selector": ["score-temp", "text"], "value": 0.8}}},
             {"id": "end-temp", "type": "end", "label": "End", "config": {}},
             {"id": "eval-temp", "type": "http", "label": "Eval", "parent_id": "loop-temp", "config": {"url": "http://example.invalid", "method": "POST"}},
-            {"id": "score-temp", "type": "llm", "label": "Score", "parent_id": "loop-temp", "config": {"system_prompt": "return score"}},
+            {"id": "score-temp", "type": "llm", "label": "Score", "parent_id": "loop-temp", "config": {"system_prompt": "return score", "prompt_variables": [{"name": "eval_result", "variable_selector": ["eval-temp", "result"]}]}},
             {"id": "if-temp", "type": "if_else", "label": "Router", "parent_id": "loop-temp", "config": {"cases": [{"case_id": "done-temp", "conditions": [{"variable_selector": ["score-temp", "text"], "operator": "gte", "value": 0.8}]}], "default_case_id": "retry-temp", "branches": [{"case_id": "done-temp"}, {"case_id": "retry-temp"}]}},
             {"id": "done-temp", "type": "llm", "label": "Done", "parent_id": "loop-temp", "config": {"system_prompt": "done"}},
-            {"id": "retry-temp", "type": "http", "label": "Retry", "parent_id": "loop-temp", "config": {"url": "http://example.invalid/retry", "method": "POST"}},
+            {"id": "retry-temp", "type": "http", "label": "Retry", "parent_id": "loop-temp", "config": {"url": "http://example.invalid/retry", "method": "POST", "body_mode": "fields", "body_fields": [{"target_path": "score", "source_type": "node", "variable_selector": ["score-temp", "text"], "value_type": "number"}]}},
         ],
         "edges": [
             {"source_node_id": "start-temp", "target_node_id": "loop-temp"},
@@ -195,13 +195,64 @@ async def test_create_agent_persists_loop_and_if_else_refs_from_submitted_ids(cl
     assert loop_node["config"]["end_condition"]["variable_selector"][0] == score_node["id"]
     assert router_node["config"]["cases"][0]["case_id"] == done_node["id"]
     assert router_node["config"]["cases"][0]["conditions"][0]["variable_selector"][0] == score_node["id"]
+    assert score_node["config"]["prompt_variables"][0]["variable_selector"][0] == nodes_by_label["Eval"]["id"]
     assert router_node["config"]["branches"][0]["case_id"] == done_node["id"]
     assert router_node["config"]["branches"][1]["case_id"] == retry_node["id"]
     assert router_node["config"]["default_case_id"] == retry_node["id"]
+    assert retry_node["config"]["body_fields"][0]["variable_selector"][0] == score_node["id"]
     assert done_edge["source_handle"] == done_node["id"]
     assert retry_edge["source_handle"] == retry_node["id"]
     assert done_node["parent_id"] == loop_node["id"]
     assert retry_node["parent_id"] == loop_node["id"]
+
+
+@pytest.mark.asyncio
+async def test_exported_agent_json_can_be_imported(client):
+    payload = {
+        "name": "Export Import Agent",
+        "nodes": [
+            {"id": "start-temp", "type": "start", "label": "Start", "config": {}},
+            {"id": "score-temp", "type": "llm", "label": "Score", "config": {"system_prompt": "score"}},
+            {"id": "judge-temp", "type": "llm", "label": "Judge", "config": {"system_prompt": "score is {{score}}", "prompt_variables": [{"name": "score", "variable_selector": ["score-temp", "text"]}]}},
+            {"id": "router-temp", "type": "if_else", "label": "Router", "config": {"cases": [{"case_id": "done-temp", "conditions": [{"variable_selector": ["judge-temp", "text"], "operator": "contains", "value": "ok"}]}], "default_case_id": "retry-temp", "branches": [{"case_id": "done-temp"}, {"case_id": "retry-temp"}]}},
+            {"id": "done-temp", "type": "end", "label": "Done", "config": {}},
+            {"id": "retry-temp", "type": "end", "label": "Retry", "config": {}},
+        ],
+        "edges": [
+            {"source_node_id": "start-temp", "target_node_id": "score-temp"},
+            {"source_node_id": "score-temp", "target_node_id": "judge-temp"},
+            {"source_node_id": "judge-temp", "target_node_id": "router-temp"},
+            {"source_node_id": "router-temp", "target_node_id": "done-temp", "source_handle": "done-temp", "condition": "done-temp"},
+            {"source_node_id": "router-temp", "target_node_id": "retry-temp", "source_handle": "retry-temp", "condition": "retry-temp"},
+        ],
+    }
+
+    created_resp = await client.post("/api/agents", json=payload)
+    assert created_resp.status_code == 201, created_resp.text
+    created = created_resp.json()
+
+    export_resp = await client.get(f"/api/agents/{created['id']}/export")
+    assert export_resp.status_code == 200, export_resp.text
+    exported = export_resp.json()
+    assert all("id" in node for node in exported["nodes"])
+
+    import_resp = await client.post("/api/agents/import", json=exported)
+    assert import_resp.status_code == 201, import_resp.text
+    imported = import_resp.json()
+
+    nodes_by_label = {node["label"]: node for node in imported["nodes"]}
+    score_node = nodes_by_label["Score"]
+    judge_node = nodes_by_label["Judge"]
+    router_node = nodes_by_label["Router"]
+    done_node = nodes_by_label["Done"]
+
+    assert imported["id"] != created["id"]
+    assert imported["name"].startswith(f"{created['name']}_")
+    assert judge_node["config"]["prompt_variables"][0]["variable_selector"][0] == score_node["id"]
+    assert router_node["config"]["cases"][0]["conditions"][0]["variable_selector"][0] == judge_node["id"]
+    assert router_node["config"]["cases"][0]["case_id"] == done_node["id"]
+    done_edge = next(edge for edge in imported["edges"] if edge["target_node_id"] == done_node["id"])
+    assert done_edge["source_handle"] == done_node["id"]
 
 
 @pytest.mark.asyncio
