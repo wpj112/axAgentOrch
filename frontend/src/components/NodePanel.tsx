@@ -45,7 +45,7 @@ function NodePanel({ nodes, edges, onNodesChange, onEdgesChange, onAddNode, onEd
           style={{
             padding: '6px 16px',
             fontSize: 13,
-            background: '#3b82f6',
+            background: 'var(--color-primary)',
             color: '#fff',
             border: 'none',
             borderRadius: 6,
@@ -57,7 +57,7 @@ function NodePanel({ nodes, edges, onNodesChange, onEdgesChange, onAddNode, onEd
       </div>
 
       {nodes.length === 0 && (
-        <div style={{ color: '#888', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
           暂无节点，点击「+ 添加节点」开始
         </div>
       )}

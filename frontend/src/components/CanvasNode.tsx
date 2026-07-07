@@ -33,7 +33,7 @@ function getFlowHandleStyle(color: string, position: 'top' | 'bottom'): React.CS
     height: 6,
     borderRadius: '50%',
     background: color,
-    border: '1px solid #0f172a',
+    border: '1px solid var(--bg-page)',
     left: '50%',
     transform: position === 'top' ? 'translate(-50%, -140%)' : 'translate(-50%, 140%)',
     [position]: 0,
@@ -51,7 +51,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
   const isActive = data.activeState === 'active'
   const isMuted = data.activeState === 'muted'
   const isEmptyLoop = isLoop && !data.childCount
-  const flowHandleColor = isActive ? '#ffd54f' : si?.color || '#2e3345'
+  const flowHandleColor = isActive ? '#ffd54f' : si?.color || 'var(--border)'
 
   return (
     <div
@@ -63,12 +63,12 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
         padding: isLoop ? '10px 12px 14px' : '6px 10px',
         borderRadius: isLoop ? 18 : 10,
         border: `2px solid ${flowHandleColor}`,
-        background: isLoop ? 'linear-gradient(180deg, #14303d 0%, #102231 100%)' : '#1a1d29',
+        background: isLoop ? 'linear-gradient(180deg, var(--bg-nested) 0%, var(--bg-card) 100%)' : 'var(--bg-card)',
         minWidth: isLoop ? 160 : 70,
         minHeight: isLoop ? 120 : undefined,
         boxShadow: isActive ? '0 0 0 2px rgba(255,213,79,0.2), 0 10px 24px rgba(0,0,0,0.45)' : '0 2px 6px rgba(0,0,0,0.4)',
         fontSize: 13,
-        color: '#e0e0e0',
+        color: 'var(--text-primary)',
         transition: 'border-color 0.3s, opacity 0.2s, box-shadow 0.2s',
         overflow: 'visible',
         opacity: isMuted ? 0.42 : 1,
@@ -118,7 +118,7 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
           style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             background: isActive ? '#ffd54f' : color,
-            color: isActive ? '#0f172a' : '#fff',
+            color: isActive ? 'var(--bg-page)' : '#fff',
             width: 22, height: 22,
             borderRadius: 6,
           }}
@@ -129,16 +129,16 @@ function CanvasNode({ data }: NodeProps<CanvasNodeData>) {
       </div>
 
       {isLoop ? (
-        <div style={{ marginTop: 6, fontSize: 10, color: '#b7d7e5', lineHeight: 1.5 }}>
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-loop)', lineHeight: 1.5 }}>
           <div>{data.loopSummary || '循环容器'}</div>
           {isEmptyLoop ? (
-            <div style={{ marginTop: 4, color: isActive ? '#ffe082' : '#8fc4dc' }}>
+            <div style={{ marginTop: 4, color: isActive ? 'var(--text-loop-active)' : 'var(--text-loop)' }}>
               拖入节点到容器内，或拖右下角手柄调整大小
             </div>
           ) : null}
         </div>
       ) : data.parentLabel ? (
-        <div style={{ marginTop: 8, fontSize: 11, color: isActive ? '#ffe082' : '#60a5fa' }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: isActive ? 'var(--text-loop-active)' : 'var(--color-primary-light)' }}>
           属于循环体: {data.parentLabel}
         </div>
       ) : null}

@@ -125,6 +125,7 @@ class SettingsRequest(BaseModel):
     api_key: str | None = None
     base_url: str | None = None
     temperature: str | None = None
+    theme: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -132,3 +133,4 @@ class SettingsResponse(BaseModel):
     api_key: str = ""
     base_url: str = ""
     temperature: str = "0.7"
+    theme: str = "dark"

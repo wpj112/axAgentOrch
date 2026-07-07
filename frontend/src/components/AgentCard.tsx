@@ -92,22 +92,22 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        border: '1px solid #2e3345',
+        border: '1px solid var(--border)',
         borderRadius: 10,
         padding: '16px 18px',
-        background: '#1a1d29',
-        color: '#e0e0e0',
+        background: 'var(--bg-card)',
+        color: 'var(--text-primary)',
         transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s',
         boxShadow: hover ? '0 8px 24px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.2)',
         transform: hover ? 'translateY(-2px)' : 'none',
-        borderColor: hover ? '#3b82f6' : '#2e3345',
+        borderColor: hover ? 'var(--color-primary)' : 'var(--border)',
         cursor: 'default',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</div>
-          <div style={{ fontSize: 12, color: '#8b8fa3', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {agent.description || '暂无描述'}
           </div>
         </div>
@@ -115,26 +115,26 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
           <div style={{ position: 'relative' }}>
             <button onClick={handleCopyApi} title={copied ? "已复制 API 调用命令" : "复制 API 调用命令"} aria-label={copied ? "已复制 API 调用命令" : "复制 API 调用命令"} style={{
               ...iconButtonStyle,
-              background: copied ? '#16301d' : hover ? '#252836' : 'transparent', color: copied ? '#22c55e' : '#8b8fa3',
-              boxShadow: copied ? '0 0 0 1px rgba(34,197,94,0.28)' : 'none',
+              background: copied ? 'var(--bg-success)' : hover ? 'var(--bg-elevated)' : 'transparent', color: copied ? 'var(--color-success)' : 'var(--text-muted)',
+              boxShadow: copied ? '0 0 0 1px var(--border-success)' : 'none',
               transform: copied ? 'scale(1.05)' : 'none',
             }}><CopyIcon copied={copied} /></button>
             {copied && (
               <div style={{
                 position: 'absolute', top: '50%', right: 'calc(100% + 8px)', transform: 'translateY(-50%)',
-                padding: '3px 8px', borderRadius: 999, background: '#16301d', border: '1px solid rgba(34,197,94,0.35)',
-                color: '#86efac', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
+                padding: '3px 8px', borderRadius: 999, background: 'var(--bg-success)', border: '1px solid var(--border-success)',
+                color: 'var(--color-success)', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
                 boxShadow: '0 6px 18px rgba(0,0,0,0.28)',
               }}>已复制</div>
             )}
           </div>
           <button onClick={handleExport} title="导出" style={{
             ...iconButtonStyle,
-            background: hover ? '#252836' : 'transparent', color: '#8b8fa3',
+            background: hover ? 'var(--bg-elevated)' : 'transparent', color: 'var(--text-muted)',
           }}>⬇</button>
           <a href={`/agents/${agent.id}`} title="编辑" style={{
             ...iconButtonStyle,
-            background: hover ? '#252836' : 'transparent', color: hover ? '#60a5fa' : '#8b8fa3', textDecoration: 'none',
+            background: hover ? 'var(--bg-elevated)' : 'transparent', color: hover ? 'var(--color-primary-light)' : 'var(--text-muted)', textDecoration: 'none',
           }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
               <path d="M2 13.5l1 2 2-1L14 5.5l-2-2L3.5 12.5z" />
@@ -148,14 +148,14 @@ function AgentCard({ agent, onDelete }: AgentCardProps) {
             onMouseLeave={() => setDelHover(false)}
             style={{
               ...iconButtonStyle,
-              background: delHover ? 'rgba(239,68,68,0.12)' : 'transparent',
-              color: delHover ? '#ef4444' : '#8b8fa3',
+              background: delHover ? 'var(--bg-danger-hover)' : 'transparent',
+              color: delHover ? 'var(--color-danger)' : 'var(--text-muted)',
             }}
           >✕</button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 11, color: '#8b8fa3' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
         <span>{agent.nodes.length} 个节点</span>
         {agent.llm_model && <span>· {agent.llm_model}</span>}
         <span style={{ marginLeft: 'auto' }}>{timeAgo(agent.updated_at)}</span>

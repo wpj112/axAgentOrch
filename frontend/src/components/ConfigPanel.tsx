@@ -35,7 +35,7 @@ function ConfigPanel({ node, allNodes, edges, onSave, onClose }: ConfigPanelProp
         style={{
           position: 'fixed', top: 0, left: 0,
           width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.15)',
+          background: 'var(--bg-overlay-light)',
           zIndex: 100,
         }}
       />
@@ -43,9 +43,9 @@ function ConfigPanel({ node, allNodes, edges, onSave, onClose }: ConfigPanelProp
         style={{
           position: 'fixed', top: 0, right: 0,
           width: 380, height: '100vh',
-          background: '#1a1d29',
+          background: 'var(--bg-card)',
           boxShadow: '-4px 0 16px rgba(0,0,0,0.5)',
-          color: '#e0e0e0',
+          color: 'var(--text-primary)',
           zIndex: 200,
           overflow: 'auto',
           transition: 'right 0.3s ease',

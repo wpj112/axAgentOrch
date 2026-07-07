@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
 import { fetchSettings, updateSettings, type AppSettings } from '../api/client'
+import { useTheme } from '../ThemeContext'
 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid #2e3345', borderRadius: 6, boxSizing: 'border-box',
-  background: '#252836', color: '#e0e0e0',
+  border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
+  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid #2e3345', borderRadius: 6, boxSizing: 'border-box',
-  background: '#252836', color: '#e0e0e0',
+  border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
+  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
 }
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4,
-  color: '#9ca3af',
+  color: 'var(--text-secondary)',
 }
 
 const fieldStyle: React.CSSProperties = { marginBottom: 16 }
@@ -37,8 +38,9 @@ function detectProvider(baseUrl: string): Provider {
 }
 
 function Settings() {
-  const [settings, setSettings] = useState<AppSettings>({ model: '', api_key: '', base_url: '', temperature: '0.7' })
+  const [settings, setSettings] = useState<AppSettings>({ model: '', api_key: '', base_url: '', temperature: '0.7', theme: 'dark' })
   const [provider, setProvider] = useState<Provider>('openai')
+  const { setTheme } = useTheme()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -65,6 +67,7 @@ function Settings() {
     setSaving(true)
     try {
       await updateSettings(settings)
+      setTheme(settings.theme)
       setMsg('保存成功')
     } catch {
       setMsg('保存失败')
@@ -73,16 +76,21 @@ function Settings() {
     }
   }
 
-  if (loading) return <div style={{ color: '#9ca3af' }}>加载中...</div>
+  const handleThemeChange = (t: string) => {
+    setSettings({ ...settings, theme: t })
+    setTheme(t)
+  }
+
+  if (loading) return <div style={{ color: 'var(--text-muted)' }}>加载中...</div>
 
   return (
-    <div style={{ maxWidth: 520, color: '#e0e0e0' }}>
+    <div style={{ maxWidth: 520, color: 'var(--text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <a href="/" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
+        <a href="/" style={{ color: 'var(--color-primary-light)', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
         <span style={{ fontSize: 18, fontWeight: 600 }}>全局设置</span>
       </div>
 
-      <div style={{ background: '#1a1d29', border: '1px solid #2e3345', borderRadius: 10, padding: 24 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 24 }}>
         <div style={fieldStyle}>
           <label style={labelStyle}>提供商</label>
           <select
@@ -152,19 +160,31 @@ function Settings() {
           />
         </div>
 
+        <div style={fieldStyle}>
+          <label style={labelStyle}>主题</label>
+          <select
+            value={settings.theme || 'dark'}
+            onChange={e => handleThemeChange(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="dark">深色</option>
+            <option value="light">浅色</option>
+          </select>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             onClick={handleSave}
             disabled={saving}
             style={{
               padding: '8px 24px', fontSize: 14, border: 'none', borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer', background: '#3b82f6', color: '#fff',
+              cursor: saving ? 'not-allowed' : 'pointer', background: 'var(--color-primary)', color: '#fff',
               opacity: saving ? 0.6 : 1,
             }}
           >
             {saving ? '保存中...' : '保存'}
           </button>
-          {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? '#22c55e' : '#ef9a9a' }}>{msg}</span>}
+          {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? 'var(--color-success)' : 'var(--color-danger-text)' }}>{msg}</span>}
         </div>
       </div>
     </div>

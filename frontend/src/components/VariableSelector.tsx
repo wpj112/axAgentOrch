@@ -18,8 +18,8 @@ interface VariableSelectorProps {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid #2e3345',
-  borderRadius: 6, boxSizing: 'border-box', background: '#252836', color: '#e0e0e0',
+  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid var(--border)',
+  borderRadius: 6, boxSizing: 'border-box', background: 'var(--bg-elevated)', color: 'var(--text-primary)',
 }
 
 const fieldHints: Record<AgentNode['type'], Array<{ path: string; label: string }>> = {

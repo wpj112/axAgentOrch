@@ -20,11 +20,11 @@ interface NodeFormProps {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid #2e3345',
-  borderRadius: 6, boxSizing: 'border-box', background: '#252836', color: '#e0e0e0',
+  width: '100%', padding: '6px 10px', fontSize: 14, border: '1px solid var(--border)',
+  borderRadius: 6, boxSizing: 'border-box', background: 'var(--bg-elevated)', color: 'var(--text-primary)',
 }
 
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#9ca3af' }
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary)' }
 const fieldStyle: React.CSSProperties = { marginBottom: 12 }
 
 type ConfigState = Record<string, string>
@@ -374,8 +374,8 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
   }
 
   return (
-    <div style={{ padding: 20, minWidth: 340, color: '#e0e0e0' }}>
-      <h3 style={{ marginTop: 0, color: '#60a5fa' }}>{initial ? '编辑节点' : '添加节点'}</h3>
+    <div style={{ padding: 20, minWidth: 340, color: 'var(--text-primary)' }}>
+      <h3 style={{ marginTop: 0, color: 'var(--color-primary-light)' }}>{initial ? '编辑节点' : '添加节点'}</h3>
 
       <div style={fieldStyle}>
         <label style={labelStyle}>类型</label>
@@ -387,9 +387,9 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, borderRadius: 6,
-                border: '1px solid #2e3345',
-                background: type === t ? cfg.color + '22' : '#252836',
-                color: type === t ? cfg.color : '#9ca3af',
+                border: '1px solid var(--border)',
+                background: type === t ? cfg.color + '22' : 'var(--bg-elevated)',
+                color: type === t ? cfg.color : 'var(--text-secondary)',
                 cursor: 'pointer', fontWeight: type === t ? 600 : 400,
               }}
             >
@@ -431,7 +431,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
             <label style={labelStyle}>Prompt 变量</label>
             <div style={{ display: 'grid', gap: 10 }}>
               {promptVariables.length > 0 ? promptVariables.map((variable) => (
-                <div key={variable.id} style={{ padding: 10, borderRadius: 8, border: '1px solid #2e3345', background: '#202432' }}>
+                <div key={variable.id} style={{ padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-nested)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 8 }}>
                     <input
                       value={variable.name}
@@ -448,23 +448,23 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
                     />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 10 }}>
-                    <div style={{ fontSize: 11, color: '#8b8fa3' }}>{'可在 System Prompt 中用 {{变量名}} 引用。'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{'可在 System Prompt 中用 {{变量名}} 引用。'}</div>
                     <button
                       onClick={() => updatePromptVariables(promptVariables.filter((item) => item.id !== variable.id))}
-                      style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid #3b2630', background: '#2b1b22', color: '#ef9a9a', cursor: 'pointer' }}
+                      style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid var(--border-danger)', background: 'var(--bg-danger)', color: 'var(--color-danger-text)', cursor: 'pointer' }}
                     >
                       删除变量
                     </button>
                   </div>
                 </div>
               )) : (
-                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed #2e3345', color: '#8b8fa3', fontSize: 12 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed var(--border)', color: 'var(--text-muted)', fontSize: 12 }}>
                   {'可选配置。添加后，可在 System Prompt 中用 {{变量名}} 精确引用上游字段。'}
                 </div>
               )}
               <button
                 onClick={() => updatePromptVariables([...promptVariables, makePromptVariable()])}
-                style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid #2e3345', background: '#252836', color: '#bfdbfe', cursor: 'pointer' }}
+                style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-light)', cursor: 'pointer' }}
               >
                 添加变量
               </button>
@@ -507,9 +507,9 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
                   key={item.value}
                   onClick={() => setConfigField('body_mode', item.value)}
                   style={{
-                    padding: '7px 10px', borderRadius: 7, border: '1px solid #2e3345',
-                    background: (config.body_mode || 'fields') === item.value ? '#1d3b63' : '#252836',
-                    color: (config.body_mode || 'fields') === item.value ? '#bfdbfe' : '#9ca3af', cursor: 'pointer',
+                    padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
+                    background: (config.body_mode || 'fields') === item.value ? 'var(--bg-selected)' : 'var(--bg-elevated)',
+                    color: (config.body_mode || 'fields') === item.value ? 'var(--text-light)' : 'var(--text-secondary)', cursor: 'pointer',
                   }}
                 >
                   {item.label}
@@ -527,7 +527,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
               <label style={labelStyle}>Body 字段</label>
               <div style={{ display: 'grid', gap: 10 }}>
                 {bodyFields.length > 0 ? bodyFields.map((field) => (
-                  <div key={field.id} style={{ padding: 10, borderRadius: 8, border: '1px solid #2e3345', background: '#202432' }}>
+                  <div key={field.id} style={{ padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-nested)' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 96px', gap: 8, marginBottom: 8 }}>
                       <input
                         value={field.target_path}
@@ -577,20 +577,20 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                       <button
                         onClick={() => updateBodyFields(bodyFields.filter((item) => item.id !== field.id))}
-                        style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid #3b2630', background: '#2b1b22', color: '#ef9a9a', cursor: 'pointer' }}
+                        style={{ padding: '5px 9px', borderRadius: 6, border: '1px solid var(--border-danger)', background: 'var(--bg-danger)', color: 'var(--color-danger-text)', cursor: 'pointer' }}
                       >
                         删除字段
                       </button>
                     </div>
                   </div>
                 )) : (
-                  <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed #2e3345', color: '#8b8fa3', fontSize: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px dashed var(--border)', color: 'var(--text-muted)', fontSize: 12 }}>
                     还没有字段，添加一行来构造请求 body。
                   </div>
                 )}
                 <button
-                  onClick={() => updateBodyFields([...bodyFields, makeBodyField()])}
-                  style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid #2e3345', background: '#252836', color: '#bfdbfe', cursor: 'pointer' }}
+                onClick={() => updateBodyFields([...bodyFields, makeBodyField()])}
+                style={{ padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-light)', cursor: 'pointer' }}
                 >
                   添加字段
                 </button>
@@ -641,15 +641,15 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
               onChange={(next) => setConfig((prev) => ({ ...prev, if_source_node_id: next.nodeId, if_source_field: next.field }))}
               fieldPlaceholder="text / result / data.intent"
             />
-            <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 6, lineHeight: 1.6 }}>
-              先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。
-            </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+            先在画布里从 if-else 连出目标节点，这里会自动生成对应分支。
+          </div>
           </div>
           {connectedBranchTargets.length > 0 ? (
             <div style={{ display: 'grid', gap: 10 }}>
               {connectedBranchTargets.map((target) => (
-                <div key={target.id} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #2e3345', background: '#202432' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#d7e3ec', marginBottom: 8 }}>分支到：{target.label}</div>
+                <div key={target.id} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-nested)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-light)', marginBottom: 8 }}>分支到：{target.label}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 8, alignItems: 'center' }}>
                     <select
                       value={config[`branch_operator__${target.id}`] || 'is'}
@@ -666,7 +666,7 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
                       <option value="gte">大于等于</option>
                     </select>
                     {(config[`branch_operator__${target.id}`] || 'is') === '__default__' ? (
-                      <div style={{ fontSize: 11, color: '#8b8fa3' }}>未命中其它分支时，默认走这里</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>未命中其它分支时，默认走这里</div>
                     ) : (config[`branch_operator__${target.id}`] || 'is') !== 'not_empty' ? (
                       <input
                         value={config[`branch_value__${target.id}`] || ''}
@@ -675,15 +675,15 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
                         style={inputStyle}
                       />
                     ) : (
-                      <div style={{ fontSize: 11, color: '#8b8fa3' }}>该分支在字段非空时命中</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>该分支在字段非空时命中</div>
                     )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ padding: '12px 12px', borderRadius: 10, background: 'rgba(59,130,246,0.08)', border: '1px dashed rgba(96,165,250,0.45)', fontSize: 12, color: '#bfdbfe', lineHeight: 1.7 }}>
-              <div style={{ fontWeight: 700, color: '#dbeafe', marginBottom: 4 }}>还没有可配置的分支</div>
+            <div style={{ padding: '12px 12px', borderRadius: 10, background: 'var(--bg-info)', border: '1px dashed var(--border-accent)', fontSize: 12, color: 'var(--text-light)', lineHeight: 1.7 }}>
+              <div style={{ fontWeight: 700, color: 'var(--text-lighter)', marginBottom: 4 }}>还没有可配置的分支</div>
               <div>先回到画布，从这个 if-else 节点连出一个或多个目标节点。</div>
               <div>连线完成后重新打开面板，这里会自动出现“到哪个节点 + 条件是什么”的配置项。</div>
             </div>
@@ -726,14 +726,14 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
               <input value={config.loop_condition_value || ''} onChange={(e) => setConfigField('loop_condition_value', e.target.value)} placeholder="例如 3 / done / 0.8" style={inputStyle} disabled={!config.loop_condition_node_id} />
             </div>
           )}
-          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: -4, marginBottom: 12, lineHeight: 1.6 }}>
             {config.loop_condition_node_id
               ? `每轮结束后会读取所选节点的输出字段，例如 ${config.loop_condition_field || 'text'}；条件满足时退出循环。常见字段：LLM 用 text，Code 用 result，HTTP / DB 可直接写返回里的字段路径。`
               : '先选择循环体里的一个节点作为结束判断来源。固定结构节点会自动带出推荐字段；HTTP / DB 默认留空，避免推荐错误字段。'}
           </div>
           {config.loop_condition_mode === 'legacy' && (
-            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', fontSize: 12, color: '#fcd34d', lineHeight: 1.6, marginBottom: 12 }}>
-              这个 loop 之前使用的是旧版“继续条件”。这里已经按“结束条件”方式帮你转换显示；保存后会升级为新版配置。
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-warning)', border: '1px solid var(--border-warning)', fontSize: 12, color: 'var(--color-warning)', lineHeight: 1.6, marginBottom: 12 }}>
+              这个 loop 之前使用的是旧版"继续条件"。这里已经按"结束条件"方式帮你转换显示；保存后会升级为新版配置。
             </div>
           )}
           <div style={fieldStyle}>
@@ -754,20 +754,20 @@ function NodeForm({ initial, allNodes, edges, onSave, onCancel }: NodeFormProps)
               ))}
             </select>
           </div>
-          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 4, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.6 }}>
             {loopChildren.length
               ? `当前循环体里有 ${loopChildren.length} 个节点。结束条件来源、起点和终点都可以直接从这些节点里选择。`
               : '先把节点加入这个 loop 容器，结束条件来源、起点/终点下拉里才会出现可选项。'}
           </div>
-          <div style={{ fontSize: 11, color: '#8b8fa3', marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
             loop 连到外部结束节点的边请命名为 `loop_exit`。
           </div>
         </>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid #2e3345', borderRadius: 6, cursor: 'pointer', background: '#252836', color: '#e0e0e0' }}>取消</button>
-        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: '#3b82f6', color: '#fff' }}>确认</button>
+        <button onClick={onCancel} style={{ padding: '8px 20px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>取消</button>
+        <button onClick={handleSave} style={{ padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--color-primary)', color: '#fff' }}>确认</button>
       </div>
     </div>
   )

@@ -444,7 +444,7 @@ function FlowCanvasInner({
   }
 
   return (
-    <div ref={reactFlowWrapper} style={{ width: '100%', height: 'calc(100vh - 110px)', border: '1px solid #2e3345', borderRadius: 8, position: 'relative', background: '#1a1a2e' }}>
+    <div ref={reactFlowWrapper} style={{ width: '100%', height: 'calc(100vh - 110px)', border: '1px solid var(--border)', borderRadius: 8, position: 'relative', background: 'var(--bg-canvas)' }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -459,8 +459,8 @@ function FlowCanvasInner({
         fitView
         deleteKeyCode={['Backspace', 'Delete']}
       >
-        <Background color="#2e3345" gap={20} />
-        <Controls style={{ background: '#1a1d29', border: '1px solid #2e3345' }} />
+        <Background color="var(--border)" gap={20} />
+        <Controls style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }} />
         <MiniMap nodeColor={(n) => {
           const colorMap: Record<string, string> = {
             start: '#22c55e', llm: '#9c27b0', http: '#2196f3',
@@ -468,7 +468,7 @@ function FlowCanvasInner({
             if_else: '#e91e63', loop: '#00bcd4',
           }
           return colorMap[n.data?.type] || '#999'
-        }} style={{ background: '#1a1d29' }} />
+        }} style={{ background: 'var(--bg-card)' }} />
       </ReactFlow>
 
       <NodePalette />
@@ -477,7 +477,7 @@ function FlowCanvasInner({
         onClick={handleAutoLayout}
         style={{
           position: 'absolute', top: 14, right: 14, zIndex: 10,
-          background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6,
+          background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 6,
           padding: '8px 12px', cursor: 'pointer', fontSize: 12,
         }}
       >

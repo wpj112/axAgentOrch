@@ -153,6 +153,7 @@ export interface AppSettings {
   api_key: string
   base_url: string
   temperature: string
+  theme: string
 }
 
 export async function fetchSettings(): Promise<AppSettings> {

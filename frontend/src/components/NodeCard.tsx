@@ -29,11 +29,11 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
   return (
     <div
       style={{
-        border: '2px solid #2e3345',
+        border: '2px solid var(--border)',
         borderRadius: 8,
         padding: '10px 14px',
         marginBottom: 8,
-        background: '#fafafa',
+        background: 'var(--bg-card)',
         fontSize: 13,
       }}
     >
@@ -58,26 +58,26 @@ function NodeCard({ node, index, nodes, edges, onEdit, onDelete, onAddEdge, onRe
         <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={() => onEdit(index)}
-            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer', background: '#fff' }}
+            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'var(--bg-elevated)' }}
           >
             编辑
           </button>
           <button
             onClick={() => addConnection()}
-            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid #3b82f6', borderRadius: 4, cursor: 'pointer', background: '#e3f2fd', color: '#3b82f6' }}
+            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid var(--color-primary)', borderRadius: 4, cursor: 'pointer', background: 'var(--bg-selected)', color: 'var(--color-primary)' }}
           >
             → 连线
           </button>
           <button
             onClick={() => onDelete(index)}
-            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid #d32f2f', borderRadius: 4, cursor: 'pointer', background: '#ffebee', color: '#d32f2f' }}
+            style={{ padding: '2px 10px', fontSize: 12, border: '1px solid var(--color-danger)', borderRadius: 4, cursor: 'pointer', background: 'var(--bg-danger)', color: 'var(--color-danger)' }}
           >
             删除
           </button>
         </div>
       </div>
       {connectedTo.length > 0 && (
-        <div style={{ marginTop: 6, color: '#666', fontSize: 12 }}>
+        <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 12 }}>
           → {connectedTo.map((ti) => nodes[ti]?.label).join(', ')}
         </div>
       )}

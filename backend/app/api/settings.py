@@ -24,6 +24,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
         api_key=rows.get("api_key", env_settings.openai_api_key),
         base_url=rows.get("base_url", env_settings.openai_base_url),
         temperature=rows.get("temperature", "0.7"),
+        theme=rows.get("theme", "dark"),
     )
 
 
@@ -34,6 +35,7 @@ async def update_settings(data: SettingsRequest, db: AsyncSession = Depends(get_
         "api_key": data.api_key,
         "base_url": data.base_url,
         "temperature": data.temperature,
+        "theme": data.theme,
     }
     for key, value in updates.items():
         if value is None:
