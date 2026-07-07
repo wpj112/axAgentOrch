@@ -2,12 +2,6 @@ import { useState, useEffect } from 'react'
 import { fetchSettings, updateSettings, type AppSettings } from '../api/client'
 import { useTheme } from '../ThemeContext'
 
-const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 12px', fontSize: 14,
-  border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
-  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-}
-
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', fontSize: 14,
   border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
@@ -37,9 +31,17 @@ function detectProvider(baseUrl: string): Provider {
   return 'custom'
 }
 
+const CATEGORIES = [
+  { key: 'model', label: '模型', icon: '▤' },
+  { key: 'appearance', label: '外观', icon: '◐' },
+] as const
+
+type Category = (typeof CATEGORIES)[number]['key']
+
 function Settings() {
   const [settings, setSettings] = useState<AppSettings>({ model: '', api_key: '', base_url: '', temperature: '0.7', theme: 'dark' })
   const [provider, setProvider] = useState<Provider>('openai')
+  const [category, setCategory] = useState<Category>('model')
   const { setTheme } = useTheme()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -84,107 +86,164 @@ function Settings() {
   if (loading) return <div style={{ color: 'var(--text-muted)' }}>加载中...</div>
 
   return (
-    <div style={{ maxWidth: 520, color: 'var(--text-primary)' }}>
+    <div style={{ color: 'var(--text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <a href="/" style={{ color: 'var(--color-primary-light)', textDecoration: 'none', fontSize: 14 }}>← 返回列表</a>
         <span style={{ fontSize: 18, fontWeight: 600 }}>全局设置</span>
       </div>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 24 }}>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>提供商</label>
-          <select
-            value={provider}
-            onChange={e => handleProviderChange(e.target.value as Provider)}
-            style={selectStyle}
-          >
-            {PROVIDERS.map(p => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
+      <div style={{ display: 'grid', gridTemplateColumns: '200px minmax(0, 1fr)', gap: 0, minHeight: 480 }}>
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px 0 0 10px',
+          borderRight: 'none', padding: '12px 0',
+        }}>
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.key}
+              onClick={() => setCategory(cat.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '10px 18px', fontSize: 14,
+                border: 'none', background: 'transparent',
+                color: category === cat.key ? 'var(--color-primary-light)' : 'var(--text-secondary)',
+                fontWeight: category === cat.key ? 600 : 400,
+                cursor: 'pointer', textAlign: 'left',
+                borderRight: category === cat.key ? '2px solid var(--color-primary)' : '2px solid transparent',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{cat.icon}</span>
+              {cat.label}
+            </button>
+          ))}
         </div>
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>Model</label>
-          {models.length > 0 ? (
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0 10px 10px 0',
+          padding: 24,
+        }}>
+          {category === 'model' && (
             <>
-              <input
-                list="model-options"
-                value={settings.model}
-                onChange={e => setSettings({ ...settings, model: e.target.value })}
-                placeholder="选择或输入模型名"
-                style={inputStyle}
-              />
-              <datalist id="model-options">
-                {models.map(m => <option key={m} value={m} />)}
-              </datalist>
+              <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600 }}>模型设置</h3>
+              <div style={fieldStyle}>
+                <label style={labelStyle}>提供商</label>
+                <select
+                  value={provider}
+                  onChange={e => handleProviderChange(e.target.value as Provider)}
+                  style={inputStyle}
+                >
+                  {PROVIDERS.map(p => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Model</label>
+                {models.length > 0 ? (
+                  <>
+                    <input
+                      list="model-options"
+                      value={settings.model}
+                      onChange={e => setSettings({ ...settings, model: e.target.value })}
+                      placeholder="选择或输入模型名"
+                      style={inputStyle}
+                    />
+                    <datalist id="model-options">
+                      {models.map(m => <option key={m} value={m} />)}
+                    </datalist>
+                  </>
+                ) : (
+                  <input
+                    value={settings.model}
+                    onChange={e => setSettings({ ...settings, model: e.target.value })}
+                    placeholder="输入模型名"
+                    style={inputStyle}
+                  />
+                )}
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>API Key</label>
+                <input
+                  type="password"
+                  value={settings.api_key}
+                  onChange={e => setSettings({ ...settings, api_key: e.target.value })}
+                  placeholder="sk-...（本地 Ollama 可留空）"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Base URL</label>
+                <input
+                  value={settings.base_url}
+                  onChange={e => setSettings({ ...settings, base_url: e.target.value })}
+                  placeholder="https://api.openai.com/v1"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Temperature</label>
+                <input
+                  value={settings.temperature}
+                  onChange={e => setSettings({ ...settings, temperature: e.target.value })}
+                  placeholder="0.7"
+                  style={inputStyle}
+                />
+              </div>
             </>
-          ) : (
-            <input
-              value={settings.model}
-              onChange={e => setSettings({ ...settings, model: e.target.value })}
-              placeholder="输入模型名"
-              style={inputStyle}
-            />
           )}
-        </div>
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>API Key</label>
-          <input
-            type="password"
-            value={settings.api_key}
-            onChange={e => setSettings({ ...settings, api_key: e.target.value })}
-            placeholder="sk-...（本地 Ollama 可留空）"
-            style={inputStyle}
-          />
-        </div>
+          {category === 'appearance' && (
+            <>
+              <h3 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 600 }}>外观设置</h3>
+              <div style={fieldStyle}>
+                <label style={labelStyle}>主题</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {[
+                    { value: 'dark', label: '深色', icon: '🌙' },
+                    { value: 'light', label: '浅色', icon: '☀' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleThemeChange(opt.value)}
+                      style={{
+                        padding: '16px 12px', borderRadius: 10, cursor: 'pointer',
+                        border: (settings.theme || 'dark') === opt.value
+                          ? '2px solid var(--color-primary)'
+                          : '2px solid var(--border)',
+                        background: (settings.theme || 'dark') === opt.value
+                          ? 'var(--bg-selected)'
+                          : 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        textAlign: 'center', transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ fontSize: 28, marginBottom: 6 }}>{opt.icon}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>Base URL</label>
-          <input
-            value={settings.base_url}
-            onChange={e => setSettings({ ...settings, base_url: e.target.value })}
-            placeholder="https://api.openai.com/v1"
-            style={inputStyle}
-          />
-        </div>
-
-        <div style={fieldStyle}>
-          <label style={labelStyle}>Temperature</label>
-          <input
-            value={settings.temperature}
-            onChange={e => setSettings({ ...settings, temperature: e.target.value })}
-            placeholder="0.7"
-            style={inputStyle}
-          />
-        </div>
-
-        <div style={fieldStyle}>
-          <label style={labelStyle}>主题</label>
-          <select
-            value={settings.theme || 'dark'}
-            onChange={e => handleThemeChange(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="dark">深色</option>
-            <option value="light">浅色</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: '8px 24px', fontSize: 14, border: 'none', borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer', background: 'var(--color-primary)', color: '#fff',
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? '保存中...' : '保存'}
-          </button>
-          {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? 'var(--color-success)' : 'var(--color-danger-text)' }}>{msg}</span>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                padding: '8px 24px', fontSize: 14, border: 'none', borderRadius: 6,
+                cursor: saving ? 'not-allowed' : 'pointer', background: 'var(--color-primary)', color: '#fff',
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? '保存中...' : '保存'}
+            </button>
+            {msg && <span style={{ fontSize: 13, color: msg === '保存成功' ? 'var(--color-success)' : 'var(--color-danger-text)' }}>{msg}</span>}
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { fetchAgents, deleteAgent as apiDeleteAgent, importAgent, type Agent } from '../api/client'
-import AgentCard, { apiUrl, copyApiUrl } from '../components/AgentCard'
+import { fetchAgents, fetchAgent, createAgent, deleteAgent as apiDeleteAgent, importAgent, type Agent } from '../api/client'
+import AgentCard, { apiUrl, copyApiUrl, type CopyCardInfo } from '../components/AgentCard'
 
 const btnStyle: React.CSSProperties = {
   padding: '6px 10px', fontSize: 15, border: '1px solid var(--border)',
@@ -31,6 +31,9 @@ function AgentList() {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'card' | 'list'>('card')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copyCard, setCopyCard] = useState<CopyCardInfo | null>(null)
+  const [copyName, setCopyName] = useState('')
+  const [copying, setCopying] = useState(false)
 
   const loadAgents = useCallback(async () => {
     setLoading(true)
@@ -51,6 +54,46 @@ function AgentList() {
     if (!window.confirm('确认删除此智能体？')) return
     await apiDeleteAgent(id)
     setAgents((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleOpenCopyCard = (info: CopyCardInfo) => {
+    setCopyCard(info)
+    setCopyName(info.defaultName)
+  }
+
+  const handleCopyCard = async () => {
+    if (!copyCard || !copyName.trim()) return
+    setCopying(true)
+    try {
+      const source = await fetchAgent(copyCard.agent.id)
+      await createAgent({
+        name: copyName.trim(),
+        description: source.description,
+        llm_model: source.llm_model,
+        llm_temperature: source.llm_temperature,
+        nodes: source.nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          label: n.label,
+          config: n.config,
+          parent_id: n.parent_id || null,
+          position_x: n.position_x,
+          position_y: n.position_y,
+        })),
+        edges: source.edges.map(e => ({
+          source_node_id: e.source_node_id,
+          target_node_id: e.target_node_id,
+          source_handle: e.source_handle,
+          condition: e.condition,
+        })),
+      })
+      setCopyCard(null)
+      loadAgents()
+    } catch {
+      alert('复制失败')
+    } finally {
+      setCopying(false)
+    }
   }
 
   const handleImport = () => {
@@ -114,7 +157,7 @@ function AgentList() {
       {view === 'card' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
           {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} />
+            <AgentCard key={agent.id} agent={agent} onDelete={handleDelete} onRefresh={loadAgents} onCopyCard={handleOpenCopyCard} />
           ))}
         </div>
       )}
@@ -171,7 +214,49 @@ function AgentList() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        )}
+
+      {copyCard && (
+        <>
+          <div onClick={() => setCopyCard(null)} style={{ position: 'fixed', inset: 0, background: 'var(--bg-overlay)', zIndex: 9999 }} />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            background: 'var(--bg-card)', borderRadius: 12, padding: 24, zIndex: 10000,
+            width: 380, boxShadow: '0 16px 48px rgba(0,0,0,0.3)',
+          }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>复制卡片</h3>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary)' }}>新名称</label>
+            <input
+              value={copyName}
+              onChange={e => setCopyName(e.target.value)}
+              autoFocus
+              style={{
+                width: '100%', padding: '8px 12px', fontSize: 14, boxSizing: 'border-box',
+                border: '1px solid var(--border)', borderRadius: 6,
+                background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+              <button
+                onClick={() => setCopyCard(null)}
+                style={{
+                  padding: '8px 20px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6,
+                  cursor: 'pointer', background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                }}
+              >取消</button>
+              <button
+                onClick={handleCopyCard}
+                disabled={copying}
+                style={{
+                  padding: '8px 20px', fontSize: 14, border: 'none', borderRadius: 6,
+                  cursor: copying ? 'not-allowed' : 'pointer',
+                  background: 'var(--color-primary)', color: '#fff', opacity: copying ? 0.6 : 1,
+                }}
+              >{copying ? '复制中...' : '确认'}</button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
